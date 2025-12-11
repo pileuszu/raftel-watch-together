@@ -218,6 +218,19 @@ function handleWebSocketMessage(data) {
       }
       break;
 
+    case 'url_change':
+      // Host changed page, participants should navigate
+      if (!isHost && data.url) {
+        const currentUrl = window.location.href;
+        if (data.url !== currentUrl) {
+          console.log('Host changed page, navigating to:', data.url);
+          // Reset video reference as it will change after navigation
+          video = null;
+          window.location.href = data.url;
+        }
+      }
+      break;
+
     case 'participant_joined':
     case 'participant_left':
       // Participant count change notification
@@ -253,6 +266,30 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     if (changes.isHost) {
       isHost = changes.isHost.newValue || false;
       showConnectionStatus(ws && ws.readyState === WebSocket.OPEN);
+    }
+  }
+});
+
+// Listen for messages from background script
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.type === 'url_changed') {
+    // Host: send URL change to participants
+    if (isHost && ws && ws.readyState === WebSocket.OPEN) {
+      sendMessage({
+        type: 'url_change',
+        url: message.url,
+        timestamp: Date.now()
+      });
+    }
+  } else if (message.type === 'room_changed') {
+    // Room settings changed, reconnect
+    if (message.roomId && message.wsUrl) {
+      roomId = message.roomId;
+      isHost = message.isHost || false;
+      if (ws) {
+        ws.close();
+      }
+      connectWebSocket(message.wsUrl);
     }
   }
 });
