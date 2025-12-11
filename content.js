@@ -6,6 +6,7 @@ let roomId = null;
 let isHost = false;
 let isSyncing = false;
 let lastSyncTime = 0;
+let lastUrl = window.location.href;
 
 // Find video element
 function findVideo() {
@@ -224,8 +225,9 @@ function handleWebSocketMessage(data) {
         const currentUrl = window.location.href;
         if (data.url !== currentUrl) {
           console.log('Host changed page, navigating to:', data.url);
-          // Reset video reference as it will change after navigation
+          // Reset video reference and URL tracking
           video = null;
+          lastUrl = data.url;
           window.location.href = data.url;
         }
       }
@@ -273,7 +275,8 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'url_changed') {
-    // Host: send URL change to participants
+    // Also handle URL change from background script (backup method)
+    lastUrl = message.url;
     if (isHost && ws && ws.readyState === WebSocket.OPEN) {
       sendMessage({
         type: 'url_change',
@@ -286,12 +289,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.roomId && message.wsUrl) {
       roomId = message.roomId;
       isHost = message.isHost || false;
+      lastUrl = window.location.href; // Reset URL tracking
       if (ws) {
         ws.close();
       }
       connectWebSocket(message.wsUrl);
     }
   }
+});
+
+// Monitor URL changes (for host)
+function monitorUrlChanges() {
+  const currentUrl = window.location.href;
+  if (currentUrl !== lastUrl) {
+    lastUrl = currentUrl;
+    
+    // Host should notify participants of URL change
+    if (isHost && ws && ws.readyState === WebSocket.OPEN) {
+      console.log('URL changed, broadcasting:', currentUrl);
+      sendMessage({
+        type: 'url_change',
+        url: currentUrl,
+        timestamp: Date.now()
+      });
+    }
+  }
+}
+
+// Check URL changes periodically
+setInterval(monitorUrlChanges, 1000);
+
+// Also check on popstate (browser back/forward)
+window.addEventListener('popstate', () => {
+  setTimeout(monitorUrlChanges, 100);
 });
 
 // Initialize
@@ -306,6 +336,8 @@ const observer = new MutationObserver(() => {
   if (!video) {
     findVideo();
   }
+  // Also check URL when DOM changes (SPA navigation)
+  monitorUrlChanges();
 });
 
 observer.observe(document.body, {
