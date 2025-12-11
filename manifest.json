@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "Laftel Watch Together",
+  "version": "1.0.0",
+  "description": "Watch Laftel videos together with friends in real-time",
+  "permissions": [
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://laftel.net/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://laftel.net/player/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  }
+}
+
