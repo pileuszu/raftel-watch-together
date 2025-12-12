@@ -206,10 +206,43 @@ function broadcastToRoom(roomId, data, excludeWs = null) {
 }
 
 // Graceful shutdown
-process.on('SIGINT', () => {
+function shutdown() {
   console.log('\nShutting down server...');
-  wss.close(() => {
-    console.log('Server closed');
-    process.exit(0);
+  
+  // Close all WebSocket connections
+  wss.clients.forEach((ws) => {
+    ws.close();
   });
+  
+  // Close WebSocket server
+  wss.close(() => {
+    console.log('WebSocket server closed');
+    
+    // Close HTTP server
+    server.close(() => {
+      console.log('HTTP server closed');
+      console.log('Server shutdown complete');
+      process.exit(0);
+    });
+  });
+  
+  // Force exit after 5 seconds if graceful shutdown fails
+  setTimeout(() => {
+    console.error('Forcing exit...');
+    process.exit(1);
+  }, 5000);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  shutdown();
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  shutdown();
 });
