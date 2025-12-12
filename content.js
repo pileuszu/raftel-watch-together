@@ -89,10 +89,15 @@ function sendMessage(data) {
 // Check and setup WebSocket connection
 function checkConnection() {
   chrome.storage.local.get(['roomId', 'wsUrl', 'isHost'], (result) => {
+    // Only auto-connect if explicitly set (not from previous session)
+    // This prevents auto-joining rooms from previous sessions
     if (result.roomId && result.wsUrl) {
-      roomId = result.roomId;
-      isHost = result.isHost || false;
-      connectWebSocket(result.wsUrl);
+      // Check if this is a fresh page load (no existing connection)
+      if (!ws || ws.readyState === WebSocket.CLOSED) {
+        roomId = result.roomId;
+        isHost = result.isHost || false;
+        connectWebSocket(result.wsUrl);
+      }
     }
   });
 }
@@ -108,10 +113,13 @@ function connectWebSocket(wsUrl) {
 
     ws.onopen = () => {
       console.log('WebSocket connected');
-      sendMessage({
-        type: 'join',
-        roomId: roomId
-      });
+      // Only send join if we have a roomId
+      if (roomId) {
+        sendMessage({
+          type: 'join',
+          roomId: roomId
+        });
+      }
       
       showConnectionStatus(true);
     };
@@ -133,9 +141,11 @@ function connectWebSocket(wsUrl) {
     ws.onclose = () => {
       console.log('WebSocket disconnected');
       showConnectionStatus(false);
-      // Reconnect
+      // Reconnect only if we still have a roomId (user hasn't left)
       setTimeout(() => {
-        if (roomId) {
+        if (roomId && wsUrl) {
+          // Reset ws to allow reconnection
+          ws = null;
           connectWebSocket(wsUrl);
         }
       }, 3000);

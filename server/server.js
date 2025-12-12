@@ -31,6 +31,16 @@ const wss = new WebSocket.Server({ server });
 server.listen(PORT, HOST, () => {
   console.log(`WebSocket server running on ${HOST}:${PORT}`);
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use.`);
+    console.error(`Please stop the process using this port or use a different port.`);
+    console.error(`To find the process: netstat -ano | findstr :${PORT}`);
+    console.error(`To kill the process: taskkill /PID <PID> /F`);
+  } else {
+    console.error('Server error:', err);
+  }
+  process.exit(1);
 });
 
 wss.on('connection', (ws, req) => {
@@ -54,11 +64,30 @@ wss.on('connection', (ws, req) => {
           return;
         }
 
-        // Remove from existing room
-        if (currentRoomId && rooms.has(currentRoomId)) {
+        // If already in the same room, ignore duplicate join
+        if (currentRoomId === roomId && rooms.has(roomId) && rooms.get(roomId).has(ws)) {
+          // Already in this room, just send current room info
+          ws.send(JSON.stringify({
+            type: 'room_info',
+            roomId: roomId,
+            isHost: isHost,
+            participants: rooms.get(roomId).size
+          }));
+          return;
+        }
+
+        // Remove from existing room (only if joining different room)
+        if (currentRoomId && currentRoomId !== roomId && rooms.has(currentRoomId)) {
           rooms.get(currentRoomId).delete(ws);
           if (rooms.get(currentRoomId).size === 0) {
             rooms.delete(currentRoomId);
+            console.log(`Room ${currentRoomId} deleted (client moved to different room)`);
+          } else {
+            // Notify other participants in old room
+            broadcastToRoom(currentRoomId, {
+              type: 'participant_left',
+              participants: rooms.get(currentRoomId).size
+            }, ws);
           }
         }
 
@@ -66,10 +95,17 @@ wss.on('connection', (ws, req) => {
         if (!rooms.has(roomId)) {
           rooms.set(roomId, new Set());
           isHost = true; // First participant is host
+          console.log(`Room ${roomId} created`);
         } else {
-          isHost = false;
+          // Check if already in this room (shouldn't happen but safety check)
+          if (rooms.get(roomId).has(ws)) {
+            isHost = false; // Keep existing status
+          } else {
+            isHost = false; // New participant
+          }
         }
 
+        // Add to room (Set.add is idempotent, but we already checked above)
         rooms.get(roomId).add(ws);
         currentRoomId = roomId;
 
