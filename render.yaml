@@ -1,14 +1,18 @@
+# Exported from Render on 2025-12-12T01:50:01Z
+version: "1"
 services:
-  - type: web
-    name: raftel-watch-together
-    env: node
-    plan: free
-    rootDir: server
-    buildCommand: npm install
-    startCommand: npm start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: PORT
-        value: 10000
-
+- type: web
+  name: raftel-watch-together
+  runtime: node
+  repo: https://github.com/pileuszu/raftel-watch-together
+  plan: free
+  envVars:
+  - key: PORT
+    sync: false
+  - key: NODE_ENV
+    sync: false
+  region: oregon
+  buildCommand: npm install
+  startCommand: npm start
+  autoDeployTrigger: commit
+  rootDir: server
