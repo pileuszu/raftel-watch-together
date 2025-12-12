@@ -1,15 +1,20 @@
-// WebSocket Server
+// WebSocket Server for Laftel Watch Together
 const WebSocket = require('ws');
 const http = require('http');
 
 const PORT = process.env.PORT || 3001;
 const HOST = process.env.HOST || '0.0.0.0';
 
-// Room management
-const rooms = new Map(); // roomId -> Set of WebSocket connections
+// Room structure: { participants: Map<ws, { isHost, joinedAt }>, hostWs: ws }
+const rooms = new Map();
+
+// Client to room mapping for quick lookup
+const clientRooms = new Map(); // ws -> roomId
 
 // HTTP server for health checks
 const server = http.createServer((req, res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ 
@@ -24,225 +29,382 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// WebSocket server
+// WebSocket server attached to HTTP server
 const wss = new WebSocket.Server({ server });
 
 // Start server
 server.listen(PORT, HOST, () => {
-  console.log(`WebSocket server running on ${HOST}:${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-}).on('error', (err) => {
+  console.log(`[Server] Running on ${HOST}:${PORT}`);
+  console.log(`[Server] Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use.`);
-    console.error(`Please stop the process using this port or use a different port.`);
-    console.error(`To find the process: netstat -ano | findstr :${PORT}`);
-    console.error(`To kill the process: taskkill /PID <PID> /F`);
+    console.error(`[Error] Port ${PORT} is already in use.`);
+    console.error(`[Error] Run: netstat -ano | findstr :${PORT}`);
+    console.error(`[Error] Then: taskkill /PID <PID> /F`);
   } else {
-    console.error('Server error:', err);
+    console.error('[Error] Server error:', err);
   }
   process.exit(1);
 });
 
+// Client ID tracking
+const wsClientIds = new Map(); // ws -> clientId
+
+// WebSocket connection handler
 wss.on('connection', (ws, req) => {
-  console.log('New client connected:', req.socket.remoteAddress);
+  // Client ID will be set when client sends first message with clientId
+  let clientId = null;
   
-  let currentRoomId = null;
-  let isHost = false;
+  console.log(`[Connect] New connection from ${req.socket.remoteAddress}`);
 
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
       
-      if (data.type === 'join') {
-        const roomId = data.roomId;
-        
-        if (!roomId) {
-          ws.send(JSON.stringify({
-            type: 'error',
-            message: 'Room ID is required'
-          }));
-          return;
-        }
-
-        // If already in the same room, ignore duplicate join
-        if (currentRoomId === roomId && rooms.has(roomId) && rooms.get(roomId).has(ws)) {
-          // Already in this room, just send current room info
-          ws.send(JSON.stringify({
-            type: 'room_info',
-            roomId: roomId,
-            isHost: isHost,
-            participants: rooms.get(roomId).size
-          }));
-          return;
-        }
-
-        // Remove from existing room (only if joining different room)
-        if (currentRoomId && currentRoomId !== roomId && rooms.has(currentRoomId)) {
-          rooms.get(currentRoomId).delete(ws);
-          if (rooms.get(currentRoomId).size === 0) {
-            rooms.delete(currentRoomId);
-            console.log(`Room ${currentRoomId} deleted (client moved to different room)`);
-          } else {
-            // Notify other participants in old room
-            broadcastToRoom(currentRoomId, {
-              type: 'participant_left',
-              participants: rooms.get(currentRoomId).size
-            }, ws);
-          }
-        }
-
-        // Add to new room
-        if (!rooms.has(roomId)) {
-          rooms.set(roomId, new Set());
-          isHost = true; // First participant is host
-          console.log(`Room ${roomId} created`);
-        } else {
-          // Check if already in this room (shouldn't happen but safety check)
-          if (rooms.get(roomId).has(ws)) {
-            isHost = false; // Keep existing status
-          } else {
-            isHost = false; // New participant
-          }
-        }
-
-        // Add to room (Set.add is idempotent, but we already checked above)
-        rooms.get(roomId).add(ws);
-        currentRoomId = roomId;
-
-        // Send room info
-        ws.send(JSON.stringify({
-          type: 'room_info',
-          roomId: roomId,
-          isHost: isHost,
-          participants: rooms.get(roomId).size
-        }));
-
-        // Notify other participants
-        broadcastToRoom(roomId, {
-          type: 'participant_joined',
-          participants: rooms.get(roomId).size
-        }, ws);
-
-        console.log(`Client joined room ${roomId} (Host: ${isHost}, Participants: ${rooms.get(roomId).size})`);
-
-        // Request sync if not host
-        if (!isHost) {
-          const host = Array.from(rooms.get(roomId)).find(client => {
-            return client !== ws;
-          });
-          
-          if (host && host.readyState === WebSocket.OPEN) {
-            host.send(JSON.stringify({
-              type: 'sync_request',
-              from: 'new_participant'
-            }));
-          }
-        }
-      } else if (data.type === 'sync_response') {
-        // Broadcast sync response to all participants except host
-        broadcastToRoom(currentRoomId, {
-          type: 'sync',
-          time: data.time,
-          playing: data.playing,
-          volume: data.volume
-        }, ws);
-      } else if (currentRoomId && rooms.has(currentRoomId)) {
-        // Broadcast other messages to all participants in room
-        broadcastToRoom(currentRoomId, data, ws);
+      // Extract clientId from message if provided
+      if (data.clientId && !clientId) {
+        clientId = data.clientId;
+        wsClientIds.set(ws, clientId);
+        console.log(`[Identify] Client identified as ${clientId}`);
+      } else if (!clientId) {
+        // Generate one if client didn't provide
+        clientId = generateClientId();
+        wsClientIds.set(ws, clientId);
+        console.log(`[Identify] Generated ID for client: ${clientId}`);
       }
+      
+      handleMessage(ws, clientId, data);
     } catch (error) {
-      console.error('Message processing error:', error);
-      ws.send(JSON.stringify({
-        type: 'error',
-        message: 'Error processing message'
-      }));
+      console.error(`[Error] Message parse error:`, error.message);
+      sendError(ws, 'Invalid message format');
     }
   });
 
   ws.on('close', () => {
-    console.log('Client disconnected');
-    
-    if (currentRoomId && rooms.has(currentRoomId)) {
-      rooms.get(currentRoomId).delete(ws);
-      
-      // Delete room if empty
-      if (rooms.get(currentRoomId).size === 0) {
-        rooms.delete(currentRoomId);
-        console.log(`Room ${currentRoomId} deleted`);
-      } else {
-        // Notify other participants
-        broadcastToRoom(currentRoomId, {
-          type: 'participant_left',
-          participants: rooms.get(currentRoomId).size
-        }, ws);
-        
-        // Assign new host if host left
-        if (isHost && rooms.get(currentRoomId).size > 0) {
-          const newHost = Array.from(rooms.get(currentRoomId))[0];
-          newHost.send(JSON.stringify({
-            type: 'room_info',
-            isHost: true
-          }));
-        }
-      }
-    }
+    const id = wsClientIds.get(ws) || 'unknown';
+    wsClientIds.delete(ws);
+    handleDisconnect(ws, id);
   });
 
   ws.on('error', (error) => {
-    console.error('WebSocket error:', error);
+    const id = wsClientIds.get(ws) || 'unknown';
+    console.error(`[Error] WebSocket error for ${id}:`, error.message);
   });
 });
 
-// Broadcast to room (excluding sender)
-function broadcastToRoom(roomId, data, excludeWs = null) {
-  if (!rooms.has(roomId)) return;
+// Message handler
+function handleMessage(ws, clientId, data) {
+  const { type, roomId } = data;
+
+  switch (type) {
+    case 'create_room':
+      handleCreateRoom(ws, clientId, data);
+      break;
+    
+    case 'join_room':
+      handleJoinRoom(ws, clientId, data);
+      break;
+    
+    case 'leave_room':
+      handleLeaveRoom(ws, clientId);
+      break;
+    
+    case 'sync_response':
+      handleSyncResponse(ws, data);
+      break;
+    
+    default:
+      // Broadcast other messages to room participants
+      broadcastToRoom(ws, data);
+      break;
+  }
+}
+
+// Create a new room (host only)
+function handleCreateRoom(ws, clientId, data) {
+  const { roomId } = data;
+  
+  if (!roomId) {
+    sendError(ws, 'Room ID is required');
+    return;
+  }
+
+  // Leave current room if in one
+  leaveCurrentRoom(ws, clientId);
+
+  // Check if room already exists
+  if (rooms.has(roomId)) {
+    sendError(ws, 'Room already exists');
+    return;
+  }
+
+  // Create new room with this client as host
+  const room = {
+    participants: new Map(),
+    hostWs: ws,
+    createdAt: Date.now()
+  };
+  room.participants.set(ws, { isHost: true, joinedAt: Date.now(), clientId });
+  
+  rooms.set(roomId, room);
+  clientRooms.set(ws, roomId);
+
+  console.log(`[Room] Created: ${roomId} by ${clientId}`);
+
+  // Send confirmation
+  send(ws, {
+    type: 'room_created',
+    roomId,
+    isHost: true,
+    participants: 1
+  });
+}
+
+// Join an existing room
+function handleJoinRoom(ws, clientId, data) {
+  const { roomId } = data;
+  
+  if (!roomId) {
+    sendError(ws, 'Room ID is required');
+    return;
+  }
+
+  // Check if already in this room
+  const currentRoomId = clientRooms.get(ws);
+  if (currentRoomId === roomId) {
+    const room = rooms.get(roomId);
+    if (room) {
+      const participant = room.participants.get(ws);
+      send(ws, {
+        type: 'room_joined',
+        roomId,
+        isHost: participant?.isHost || false,
+        participants: room.participants.size
+      });
+    }
+    return;
+  }
+
+  // Leave current room if in a different one
+  leaveCurrentRoom(ws, clientId);
+
+  // Check if room exists
+  if (!rooms.has(roomId)) {
+    sendError(ws, 'Room not found. Ask the host to create the room first.');
+    return;
+  }
+
+  const room = rooms.get(roomId);
+  
+  // Add to room as participant (not host)
+  room.participants.set(ws, { isHost: false, joinedAt: Date.now(), clientId });
+  clientRooms.set(ws, roomId);
+
+  console.log(`[Room] ${clientId} joined ${roomId} (${room.participants.size} participants)`);
+
+  // Send confirmation to new participant
+  send(ws, {
+    type: 'room_joined',
+    roomId,
+    isHost: false,
+    participants: room.participants.size
+  });
+
+  // Notify others
+  broadcastToRoom(ws, {
+    type: 'participant_joined',
+    participants: room.participants.size
+  });
+
+  // Request sync from host
+  if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
+    send(room.hostWs, {
+      type: 'sync_request',
+      from: clientId
+    });
+  }
+}
+
+// Leave current room
+function handleLeaveRoom(ws, clientId) {
+  leaveCurrentRoom(ws, clientId);
+  send(ws, { type: 'room_left' });
+}
+
+// Handle sync response from host
+function handleSyncResponse(ws, data) {
+  const roomId = clientRooms.get(ws);
+  if (!roomId) return;
+
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  // Only host can send sync response
+  const participant = room.participants.get(ws);
+  if (!participant?.isHost) return;
+
+  // Broadcast sync to all non-host participants
+  room.participants.forEach((info, client) => {
+    if (client !== ws && client.readyState === WebSocket.OPEN) {
+      send(client, {
+        type: 'sync',
+        time: data.time,
+        playing: data.playing,
+        volume: data.volume,
+        url: data.url
+      });
+    }
+  });
+}
+
+// Broadcast message to room (excluding sender)
+function broadcastToRoom(ws, data) {
+  const roomId = clientRooms.get(ws);
+  if (!roomId) return;
+
+  const room = rooms.get(roomId);
+  if (!room) return;
 
   const message = JSON.stringify(data);
-  rooms.get(roomId).forEach((client) => {
-    if (client !== excludeWs && client.readyState === WebSocket.OPEN) {
+  room.participants.forEach((info, client) => {
+    if (client !== ws && client.readyState === WebSocket.OPEN) {
       client.send(message);
     }
   });
 }
 
+// Leave current room helper
+function leaveCurrentRoom(ws, clientId) {
+  const roomId = clientRooms.get(ws);
+  if (!roomId) return;
+
+  const room = rooms.get(roomId);
+  if (!room) {
+    clientRooms.delete(ws);
+    return;
+  }
+
+  const wasHost = room.participants.get(ws)?.isHost || false;
+  room.participants.delete(ws);
+  clientRooms.delete(ws);
+
+  console.log(`[Room] ${clientId} left ${roomId} (${room.participants.size} remaining)`);
+
+  // Delete room if empty
+  if (room.participants.size === 0) {
+    rooms.delete(roomId);
+    console.log(`[Room] Deleted: ${roomId} (empty)`);
+    return;
+  }
+
+  // Notify remaining participants
+  broadcastToRoomById(roomId, {
+    type: 'participant_left',
+    participants: room.participants.size
+  });
+
+  // Assign new host if host left
+  if (wasHost) {
+    const [newHostWs, newHostInfo] = room.participants.entries().next().value;
+    newHostInfo.isHost = true;
+    room.hostWs = newHostWs;
+    
+    console.log(`[Room] New host assigned in ${roomId}: ${newHostInfo.clientId}`);
+    
+    send(newHostWs, {
+      type: 'host_assigned',
+      isHost: true
+    });
+  }
+}
+
+// Handle client disconnect
+function handleDisconnect(ws, clientId) {
+  console.log(`[Disconnect] Client ${clientId}`);
+  leaveCurrentRoom(ws, clientId);
+}
+
+// Broadcast to room by ID
+function broadcastToRoomById(roomId, data) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  const message = JSON.stringify(data);
+  room.participants.forEach((info, client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+}
+
+// Send message to client
+function send(ws, data) {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+  }
+}
+
+// Send error to client
+function sendError(ws, message) {
+  send(ws, { type: 'error', message });
+}
+
+// Generate unique client ID
+function generateClientId() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
 // Graceful shutdown
 function shutdown() {
-  console.log('\nShutting down server...');
+  console.log('\n[Server] Shutting down...');
   
-  // Close all WebSocket connections
+  // Notify all clients
   wss.clients.forEach((ws) => {
-    ws.close();
+    send(ws, { type: 'server_shutdown' });
+    ws.close(1001, 'Server shutting down');
   });
   
   // Close WebSocket server
   wss.close(() => {
-    console.log('WebSocket server closed');
+    console.log('[Server] WebSocket server closed');
     
     // Close HTTP server
     server.close(() => {
-      console.log('HTTP server closed');
-      console.log('Server shutdown complete');
+      console.log('[Server] HTTP server closed');
       process.exit(0);
     });
   });
   
-  // Force exit after 5 seconds if graceful shutdown fails
+  // Force exit after 3 seconds
   setTimeout(() => {
-    console.error('Forcing exit...');
+    console.error('[Server] Forcing exit...');
     process.exit(1);
-  }, 5000);
+  }, 3000);
 }
 
+// Signal handlers
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-// Handle uncaught exceptions
+// For Windows: handle Ctrl+C properly
+if (process.platform === 'win32') {
+  const readline = require('readline');
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
+  });
+  rl.on('SIGINT', () => process.emit('SIGINT'));
+  rl.on('close', () => process.emit('SIGINT'));
+}
+
+// Handle uncaught errors
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  console.error('[Error] Uncaught Exception:', err);
   shutdown();
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  shutdown();
+process.on('unhandledRejection', (reason) => {
+  console.error('[Error] Unhandled Rejection:', reason);
 });

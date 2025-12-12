@@ -16,7 +16,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://laftel.net/player/*"],
+      "matches": ["https://laftel.net/*"],
       "js": ["content.js"],
       "css": ["content.css"],
       "run_at": "document_idle"
