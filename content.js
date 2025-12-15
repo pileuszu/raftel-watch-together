@@ -310,7 +310,8 @@
           time: video.currentTime,
           playing: !video.paused,
           url: window.location.href,
-          volume: video.volume
+          volume: video.volume,
+          isPeriodic: true
         });
       }
     }, HOST_SYNC_INTERVAL_MS);

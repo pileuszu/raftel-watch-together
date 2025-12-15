@@ -14,11 +14,11 @@ const clientRooms = new Map(); // ws -> roomId
 // HTTP server for health checks
 const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  
+
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ 
-      status: 'ok', 
+    res.end(JSON.stringify({
+      status: 'ok',
       service: 'raftel-watch-together',
       rooms: rooms.size,
       timestamp: new Date().toISOString()
@@ -56,13 +56,13 @@ const wsClientIds = new Map(); // ws -> clientId
 wss.on('connection', (ws, req) => {
   // Client ID will be set when client sends first message with clientId
   let clientId = null;
-  
+
   console.log(`[Connect] New connection from ${req.socket.remoteAddress}`);
 
   ws.on('message', (message) => {
     try {
       const data = JSON.parse(message.toString());
-      
+
       // Extract clientId from message if provided
       if (data.clientId && !clientId) {
         clientId = data.clientId;
@@ -74,7 +74,7 @@ wss.on('connection', (ws, req) => {
         wsClientIds.set(ws, clientId);
         console.log(`[Identify] Generated ID for client: ${clientId}`);
       }
-      
+
       handleMessage(ws, clientId, data);
     } catch (error) {
       console.error(`[Error] Message parse error:`, error.message);
@@ -102,19 +102,19 @@ function handleMessage(ws, clientId, data) {
     case 'create_room':
       handleCreateRoom(ws, clientId, data);
       break;
-    
+
     case 'join_room':
       handleJoinRoom(ws, clientId, data);
       break;
-    
+
     case 'leave_room':
       handleLeaveRoom(ws, clientId);
       break;
-    
+
     case 'sync_response':
       handleSyncResponse(ws, data);
       break;
-    
+
     default:
       // Broadcast other messages to room participants
       broadcastToRoom(ws, data);
@@ -141,7 +141,7 @@ function broadcastRoomMembers(roomId) {
 // Create a new room (host only)
 function handleCreateRoom(ws, clientId, data) {
   const { roomId } = data;
-  
+
   if (!roomId) {
     sendError(ws, 'Room ID is required');
     return;
@@ -163,7 +163,7 @@ function handleCreateRoom(ws, clientId, data) {
     createdAt: Date.now()
   };
   room.participants.set(ws, { isHost: true, joinedAt: Date.now(), clientId });
-  
+
   rooms.set(roomId, room);
   clientRooms.set(ws, roomId);
 
@@ -176,7 +176,7 @@ function handleCreateRoom(ws, clientId, data) {
     isHost: true,
     participants: 1
   });
-  
+
   // Broadcast initial member list (just host)
   broadcastRoomMembers(roomId);
 }
@@ -184,7 +184,7 @@ function handleCreateRoom(ws, clientId, data) {
 // Join an existing room
 function handleJoinRoom(ws, clientId, data) {
   const { roomId } = data;
-  
+
   if (!roomId) {
     sendError(ws, 'Room ID is required');
     return;
@@ -217,7 +217,7 @@ function handleJoinRoom(ws, clientId, data) {
   }
 
   const room = rooms.get(roomId);
-  
+
   // Add to room as participant (not host)
   room.participants.set(ws, { isHost: false, joinedAt: Date.now(), clientId });
   clientRooms.set(ws, roomId);
@@ -269,6 +269,10 @@ function handleSyncResponse(ws, data) {
   if (!participant?.isHost) return;
 
   // Broadcast sync to all non-host participants
+  if (data.isPeriodic) {
+    console.log(`[Sync] Periodic sync broadcast in room ${roomId}`);
+  }
+
   room.participants.forEach((info, client) => {
     if (client !== ws && client.readyState === WebSocket.OPEN) {
       send(client, {
@@ -327,7 +331,7 @@ function leaveCurrentRoom(ws, clientId) {
     type: 'participant_left',
     participants: room.participants.size
   });
-  
+
   // Broadcast updated member list
   broadcastRoomMembers(roomId);
 
@@ -336,14 +340,14 @@ function leaveCurrentRoom(ws, clientId) {
     const [newHostWs, newHostInfo] = room.participants.entries().next().value;
     newHostInfo.isHost = true;
     room.hostWs = newHostWs;
-    
+
     console.log(`[Room] New host assigned in ${roomId}: ${newHostInfo.clientId}`);
-    
+
     send(newHostWs, {
       type: 'host_assigned',
       isHost: true
     });
-    
+
     // Broadcast updated member list (host changed)
     broadcastRoomMembers(roomId);
   }
@@ -388,24 +392,24 @@ function generateClientId() {
 // Graceful shutdown
 function shutdown() {
   console.log('\n[Server] Shutting down...');
-  
+
   // Notify all clients
   wss.clients.forEach((ws) => {
     send(ws, { type: 'server_shutdown' });
     ws.close(1001, 'Server shutting down');
   });
-  
+
   // Close WebSocket server
   wss.close(() => {
     console.log('[Server] WebSocket server closed');
-    
+
     // Close HTTP server
     server.close(() => {
       console.log('[Server] HTTP server closed');
       process.exit(0);
     });
   });
-  
+
   // Force exit after 3 seconds
   setTimeout(() => {
     console.error('[Server] Forcing exit...');
