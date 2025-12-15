@@ -122,6 +122,22 @@ function handleMessage(ws, clientId, data) {
   }
 }
 
+// Broadcast member list to room
+function broadcastRoomMembers(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+
+  const members = Array.from(room.participants.values()).map(p => ({
+    clientId: p.clientId,
+    isHost: p.isHost
+  }));
+
+  broadcastToRoomById(roomId, {
+    type: 'room_members',
+    members
+  });
+}
+
 // Create a new room (host only)
 function handleCreateRoom(ws, clientId, data) {
   const { roomId } = data;
@@ -160,6 +176,9 @@ function handleCreateRoom(ws, clientId, data) {
     isHost: true,
     participants: 1
   });
+  
+  // Broadcast initial member list (just host)
+  broadcastRoomMembers(roomId);
 }
 
 // Join an existing room
@@ -183,6 +202,7 @@ function handleJoinRoom(ws, clientId, data) {
         isHost: participant?.isHost || false,
         participants: room.participants.size
       });
+      broadcastRoomMembers(roomId);
     }
     return;
   }
@@ -217,6 +237,9 @@ function handleJoinRoom(ws, clientId, data) {
     type: 'participant_joined',
     participants: room.participants.size
   });
+
+  // Broadcast updated member list
+  broadcastRoomMembers(roomId);
 
   // Request sync from host
   if (room.hostWs && room.hostWs.readyState === WebSocket.OPEN) {
@@ -304,6 +327,9 @@ function leaveCurrentRoom(ws, clientId) {
     type: 'participant_left',
     participants: room.participants.size
   });
+  
+  // Broadcast updated member list
+  broadcastRoomMembers(roomId);
 
   // Assign new host if host left
   if (wasHost) {
@@ -317,6 +343,9 @@ function leaveCurrentRoom(ws, clientId) {
       type: 'host_assigned',
       isHost: true
     });
+    
+    // Broadcast updated member list (host changed)
+    broadcastRoomMembers(roomId);
   }
 }
 

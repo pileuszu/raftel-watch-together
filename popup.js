@@ -1,6 +1,6 @@
 // Laftel Watch Together - Popup UI
 
-(function() {
+(function () {
   'use strict';
 
   // State
@@ -15,6 +15,8 @@
     roomInfo: document.getElementById('roomInfo'),
     roomIdDisplay: document.getElementById('roomIdDisplay'),
     modeDisplay: document.getElementById('modeDisplay'),
+    memberCount: document.getElementById('memberCount'),
+    memberList: document.getElementById('memberList'),
     wsUrlInput: document.getElementById('wsUrl'),
     createRoomBtn: document.getElementById('createRoom'),
     joinRoomBtn: document.getElementById('joinRoom'),
@@ -38,12 +40,13 @@
         wsUrl = result.wsUrl;
         elements.wsUrlInput.value = wsUrl;
       }
-      
+
       if (result.roomId) {
         currentRoomId = result.roomId;
         isHost = result.isHost || false;
       }
-      
+
+      // Initial UI update (no members yet)
       updateUI();
     });
   }
@@ -105,9 +108,11 @@
           isConnected = response.isConnected;
           currentRoomId = response.roomId;
           isHost = response.isHost;
+
+          updateUI(response.members);
+        } else {
+          updateUI();
         }
-        
-        updateUI();
       });
     });
   }
@@ -115,7 +120,7 @@
   // Create new room
   function createRoom() {
     wsUrl = elements.wsUrlInput.value.trim();
-    
+
     if (!wsUrl) {
       alert('Please enter WebSocket server URL');
       return;
@@ -123,7 +128,7 @@
 
     wsUrl = convertToWebSocketUrl(wsUrl);
     elements.wsUrlInput.value = wsUrl;
-    
+
     const roomId = generateRoomId();
 
     getLaftelTab((tab) => {
@@ -148,8 +153,10 @@
         currentRoomId = roomId;
         isHost = true;
         chrome.storage.local.set({ wsUrl, roomId, isHost: true });
-        
-        updateUI();
+
+        // Wait a bit for connection to establish and members to update
+        setTimeout(checkCurrentTabStatus, 500);
+
         copyToClipboard(roomId);
         alert(`Room created!\nRoom ID: ${roomId}\n(Copied to clipboard)`);
       });
@@ -160,12 +167,12 @@
   function joinRoom() {
     const roomId = elements.joinRoomIdInput.value.trim().toUpperCase();
     wsUrl = elements.wsUrlInput.value.trim();
-    
+
     if (!roomId) {
       alert('Please enter room ID');
       return;
     }
-    
+
     if (!wsUrl) {
       alert('Please enter WebSocket server URL');
       return;
@@ -196,8 +203,10 @@
         currentRoomId = roomId;
         isHost = false;
         chrome.storage.local.set({ wsUrl, roomId, isHost: false });
-        
-        updateUI();
+
+        // Wait a bit for connection to establish and members to update
+        setTimeout(checkCurrentTabStatus, 500);
+
         alert('Joined room!');
       });
     });
@@ -219,23 +228,53 @@
       currentRoomId = null;
       isHost = false;
       isConnected = false;
-      
+
       updateUI();
       alert('Left room');
     });
   }
 
   // Update UI based on state
-  function updateUI() {
+  function updateUI(members = []) {
     if (currentRoomId) {
       elements.status.style.display = 'block';
       elements.status.className = 'status connected';
       elements.status.textContent = 'Connected';
-      
+
       elements.roomInfo.style.display = 'block';
       elements.roomIdDisplay.textContent = currentRoomId;
       elements.modeDisplay.textContent = isHost ? 'Host' : 'Participant';
-      
+
+      // Update member list
+      if (members && members.length > 0) {
+        elements.memberCount.textContent = members.length;
+        elements.memberList.innerHTML = '';
+        members.forEach(member => {
+          const div = document.createElement('div');
+          div.className = 'member-item';
+
+          const idSpan = document.createElement('span');
+          idSpan.className = 'member-id';
+          idSpan.textContent = member.clientId;
+
+          const roleSpan = document.createElement('span');
+          if (member.isHost) {
+            roleSpan.className = 'member-role host';
+            roleSpan.textContent = 'HOST';
+          } else {
+            roleSpan.className = 'member-role';
+            roleSpan.textContent = 'Member';
+          }
+
+          div.appendChild(idSpan);
+          div.appendChild(roleSpan);
+          elements.memberList.appendChild(div);
+        });
+      } else {
+        // Default if no members data yet
+        if (elements.memberCount.textContent === '-') elements.memberCount.textContent = '1';
+      }
+
       elements.createRoomBtn.disabled = true;
       elements.joinRoomBtn.disabled = true;
       elements.joinRoomIdInput.disabled = true;
@@ -244,9 +283,9 @@
       elements.status.style.display = 'block';
       elements.status.className = 'status disconnected';
       elements.status.textContent = 'Not connected';
-      
+
       elements.roomInfo.style.display = 'none';
-      
+
       elements.createRoomBtn.disabled = false;
       elements.joinRoomBtn.disabled = false;
       elements.joinRoomIdInput.disabled = false;
@@ -264,28 +303,28 @@
   // Convert URL to WebSocket URL
   function convertToWebSocketUrl(url) {
     if (!url) return '';
-    
+
     url = url.trim();
-    
+
     if (url.startsWith('ws://') || url.startsWith('wss://')) {
       return url;
     }
-    
+
     if (url.startsWith('http://')) {
       return url.replace('http://', 'ws://');
     }
-    
+
     if (url.startsWith('https://')) {
       return url.replace('https://', 'wss://');
     }
-    
+
     if (!url.includes('://')) {
       if (url.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(url)) {
         return `ws://${url}`;
       }
       return `wss://${url}`;
     }
-    
+
     return url;
   }
 

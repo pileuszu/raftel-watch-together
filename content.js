@@ -1,7 +1,7 @@
 // Laftel Watch Together - Content Script
 // Handles video synchronization on Laftel player pages
 
-(function() {
+(function () {
   'use strict';
 
   // State
@@ -17,18 +17,21 @@
   let reconnectTimer = null;
   let videoListenersAttached = false;
   let clientId = null;
+  let members = [];
+  let hostSyncInterval = null;
 
   // Constants
   const SYNC_INTERVAL = 1000;
   const RECONNECT_DELAY = 3000;
   const TIME_DIFF_THRESHOLD = 0.5;
+  const HOST_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
   // Initialize
   function init() {
     console.log('[LWT] Initializing...');
     findVideo();
     listenForMessages();
-    
+
     // Load or generate client ID, then check for reconnection
     chrome.storage.local.get(['clientId', 'wsUrl', 'roomId', 'isHost'], (result) => {
       // Get or create persistent client ID
@@ -39,7 +42,7 @@
         chrome.storage.local.set({ clientId });
       }
       console.log('[LWT] Client ID:', clientId);
-      
+
       // Auto-reconnect if we have saved connection info
       if (result.wsUrl && result.roomId) {
         console.log('[LWT] Found saved connection, auto-reconnecting...');
@@ -63,32 +66,32 @@
 
     try {
       ws = new WebSocket(url);
-      
+
       ws.onopen = () => {
         console.log('[LWT] Reconnected');
         isConnected = true;
-        
+
         // If was host, try create first, if fails, join (include clientId)
         if (wasHost) {
           sendToServer({ type: 'create_room', roomId: room, clientId });
         } else {
           sendToServer({ type: 'join_room', roomId: room, clientId });
         }
-        
+
         updateStatusUI();
       };
 
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          
+
           // Handle room_created failure (room already exists)
           if (data.type === 'error' && data.message.includes('already exists')) {
             console.log('[LWT] Room exists, joining as participant...');
             sendToServer({ type: 'join_room', roomId: room, clientId });
             return;
           }
-          
+
           handleServerMessage(data);
         } catch (e) {
           console.error('[LWT] Message parse error:', e);
@@ -105,7 +108,8 @@
         console.log('[LWT] Disconnected');
         isConnected = false;
         updateStatusUI();
-        
+        stopHostSync();
+
         // Reconnect if we still have room info
         if (roomId && wsUrl) {
           scheduleReconnect();
@@ -119,14 +123,14 @@
   // Find video element
   function findVideo() {
     video = document.querySelector('video[data-cy="video"]');
-    
+
     if (!video) {
       setTimeout(findVideo, 1000);
       return;
     }
 
     console.log('[LWT] Video element found');
-    
+
     if (!videoListenersAttached) {
       attachVideoListeners();
       videoListenersAttached = true;
@@ -146,7 +150,7 @@
   // Video event handlers
   function onVideoPlay() {
     if (isSyncing || !isConnected) return;
-    
+
     sendToServer({
       type: 'play',
       time: video.currentTime
@@ -155,7 +159,7 @@
 
   function onVideoPause() {
     if (isSyncing || !isConnected) return;
-    
+
     sendToServer({
       type: 'pause',
       time: video.currentTime
@@ -164,7 +168,7 @@
 
   function onVideoSeeked() {
     if (isSyncing || !isConnected || !isHost) return;
-    
+
     sendToServer({
       type: 'seek',
       time: video.currentTime
@@ -173,11 +177,11 @@
 
   function onVideoTimeUpdate() {
     if (!isHost || isSyncing || !isConnected) return;
-    
+
     const now = Date.now();
     if (now - lastSyncTime < SYNC_INTERVAL) return;
     lastSyncTime = now;
-    
+
     sendToServer({
       type: 'timeupdate',
       time: video.currentTime
@@ -198,18 +202,18 @@
 
     try {
       ws = new WebSocket(url);
-      
+
       ws.onopen = () => {
         console.log('[LWT] Connected');
         isConnected = true;
-        
+
         // Send create or join based on host status (include clientId)
         if (isHost) {
           sendToServer({ type: 'create_room', roomId, clientId });
         } else {
           sendToServer({ type: 'join_room', roomId, clientId });
         }
-        
+
         updateStatusUI();
       };
 
@@ -232,7 +236,8 @@
         console.log('[LWT] Disconnected');
         isConnected = false;
         updateStatusUI();
-        
+        stopHostSync();
+
         // Reconnect if we still have room info
         if (roomId && wsUrl) {
           scheduleReconnect();
@@ -249,15 +254,16 @@
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
     }
-    
+
     if (ws) {
       sendToServer({ type: 'leave_room' });
       ws.close();
       ws = null;
     }
-    
+
     isConnected = false;
-    
+    stopHostSync();
+
     // Only clear local state if explicitly leaving (not page navigation)
     if (!keepStorage) {
       roomId = null;
@@ -266,7 +272,7 @@
       // Clear storage only on explicit leave
       chrome.storage.local.remove(['roomId', 'isHost']);
     }
-    
+
     updateStatusUI();
     console.log('[LWT] Disconnected', keepStorage ? '(keeping storage for reconnect)' : '(cleared)');
   }
@@ -274,7 +280,7 @@
   // Schedule reconnection
   function scheduleReconnect() {
     if (reconnectTimer) return;
-    
+
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       if (roomId && wsUrl) {
@@ -290,6 +296,34 @@
     ws.send(JSON.stringify(data));
   }
 
+  // Start periodic host sync
+  function startHostSync() {
+    stopHostSync();
+    if (!isHost) return;
+
+    // console.log('[LWT] Starting periodic host sync');
+    hostSyncInterval = setInterval(() => {
+      if (isHost && isConnected && video) {
+        console.log('[LWT] Sending periodic sync...');
+        sendToServer({
+          type: 'sync_response', // Reusing this type to trigger sync broadcast
+          time: video.currentTime,
+          playing: !video.paused,
+          url: window.location.href,
+          volume: video.volume
+        });
+      }
+    }, HOST_SYNC_INTERVAL_MS);
+  }
+
+  // Stop periodic host sync
+  function stopHostSync() {
+    if (hostSyncInterval) {
+      clearInterval(hostSyncInterval);
+      hostSyncInterval = null;
+    }
+  }
+
   // Handle messages from server
   function handleServerMessage(data) {
     switch (data.type) {
@@ -298,6 +332,7 @@
         isHost = true;
         roomId = data.roomId;
         updateStatusUI();
+        startHostSync();
         break;
 
       case 'room_joined':
@@ -305,6 +340,8 @@
         isHost = data.isHost;
         roomId = data.roomId;
         updateStatusUI();
+        if (isHost) startHostSync();
+        else stopHostSync();
         break;
 
       case 'room_left':
@@ -312,6 +349,7 @@
         roomId = null;
         isHost = false;
         updateStatusUI();
+        stopHostSync();
         break;
 
       case 'host_assigned':
@@ -320,6 +358,12 @@
         updateStatusUI();
         // Notify storage for popup sync
         chrome.storage.local.set({ isHost: true });
+        startHostSync();
+        break;
+
+      case 'room_members':
+        // console.log('[LWT] Members updated:', data.members);
+        members = data.members;
         break;
 
       case 'error':
@@ -332,6 +376,7 @@
             roomId = null;
             isHost = false;
             updateStatusUI();
+            stopHostSync();
           }
         } else {
           alert(`Error: ${data.message}`);
@@ -361,7 +406,7 @@
           if (data.time !== undefined) {
             video.currentTime = data.time;
           }
-          video.play().catch(() => {});
+          video.play().catch(() => { });
           setTimeout(() => { isSyncing = false; }, 100);
         }
         break;
@@ -414,24 +459,24 @@
       window.location.href = data.url;
       return;
     }
-    
+
     // Need video for the rest
     if (!video) return;
-    
+
     isSyncing = true;
-    
+
     // Sync time
     if (data.time !== undefined) {
       video.currentTime = data.time;
     }
-    
+
     // Sync play state
     if (data.playing) {
-      video.play().catch(() => {});
+      video.play().catch(() => { });
     } else {
       video.pause();
     }
-    
+
     setTimeout(() => { isSyncing = false; }, 500);
   }
 
@@ -440,14 +485,14 @@
     const currentUrl = window.location.href;
     if (currentUrl !== lastUrl) {
       lastUrl = currentUrl;
-      
+
       if (isHost && isConnected) {
         console.log('[LWT] URL changed, broadcasting:', currentUrl);
         sendToServer({
           type: 'url_change',
           url: currentUrl
         });
-        
+
         // Re-find video on new page
         video = null;
         videoListenersAttached = false;
@@ -459,12 +504,12 @@
   // Update status UI
   function updateStatusUI() {
     let statusEl = document.getElementById('lwt-status');
-    
+
     if (!isConnected || !roomId) {
       if (statusEl) statusEl.remove();
       return;
     }
-    
+
     if (!statusEl) {
       statusEl = document.createElement('div');
       statusEl.id = 'lwt-status';
@@ -483,7 +528,7 @@
       `;
       document.body.appendChild(statusEl);
     }
-    
+
     statusEl.textContent = isHost ? '🔴 Host Mode' : '👥 Watching Together';
   }
 
@@ -491,28 +536,29 @@
   function listenForMessages() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       console.log('[LWT] Received message:', message.type);
-      
+
       switch (message.type) {
         case 'connect':
           connect(message.wsUrl, message.roomId, message.isHost);
           sendResponse({ success: true });
           break;
-          
+
         case 'disconnect':
           // Explicit disconnect from popup - clear everything
           disconnect(false);
           sendResponse({ success: true });
           break;
-          
+
         case 'get_status':
           sendResponse({
             isConnected,
             roomId,
-            isHost
+            isHost,
+            members // Send current member list
           });
           break;
       }
-      
+
       return true; // Keep channel open for async response
     });
   }

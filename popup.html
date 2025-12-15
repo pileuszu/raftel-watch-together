@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -200,8 +201,47 @@
     .help-text a:hover {
       text-decoration: underline;
     }
+
+    .member-list {
+      margin-top: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      background: #222;
+      border-radius: 4px;
+      padding: 5px;
+    }
+
+    .member-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 8px;
+      font-size: 11px;
+      border-bottom: 1px solid #333;
+    }
+
+    .member-item:last-child {
+      border-bottom: none;
+    }
+
+    .member-id {
+      color: #ddd;
+    }
+
+    .member-role {
+      font-weight: bold;
+      color: #888;
+    }
+
+    .member-role.host {
+      color: #f44336;
+    }
+
+    .member-role.me {
+      color: #4CAF50;
+    }
   </style>
 </head>
+
 <body>
   <div class="header">
     <h1>🎬 Laftel Watch Together</h1>
@@ -220,6 +260,13 @@
     <div class="room-info-item">
       <span class="room-info-label">Mode:</span>
       <span class="room-info-value" id="modeDisplay">-</span>
+    </div>
+    <div class="room-info-item">
+      <span class="room-info-label">Members:</span>
+      <span class="room-info-value" id="memberCount">-</span>
+    </div>
+    <div id="memberList" class="member-list">
+      <!-- Members will be populated here -->
     </div>
   </div>
 
@@ -252,4 +299,5 @@
 
   <script src="popup.js"></script>
 </body>
+
 </html>
