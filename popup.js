@@ -58,9 +58,17 @@
   function setupEventListeners() {
     // URL input
     elements.wsUrlInput.addEventListener('change', () => {
-      wsUrl = convertToWebSocketUrl(elements.wsUrlInput.value.trim());
-      elements.wsUrlInput.value = wsUrl;
-      chrome.storage.local.set({ wsUrl });
+      const inputVal = elements.wsUrlInput.value.trim();
+      const converted = convertToWebSocketUrl(inputVal);
+
+      if (converted) {
+        wsUrl = converted;
+        elements.wsUrlInput.value = wsUrl;
+        chrome.storage.local.set({ wsUrl });
+      } else if (inputVal) {
+        // If user typed something invalid, revert to last known good URL
+        elements.wsUrlInput.value = wsUrl;
+      }
     });
 
     // Create room
@@ -101,38 +109,43 @@
         return;
       }
 
-      chrome.tabs.sendMessage(tab.id, { type: 'get_status' }, (response) => {
-        if (chrome.runtime.lastError) {
-          isConnected = false;
-          updateUI();
-          return;
-        }
+      ensureContentScript(tab.id, () => {
+        chrome.tabs.sendMessage(tab.id, { type: 'get_status' }, (response) => {
+          if (chrome.runtime.lastError) {
+            isConnected = false;
+            updateUI();
+            return;
+          }
 
-        if (response) {
-          isConnected = response.isConnected;
-          currentRoomId = response.roomId;
-          isHost = response.isHost;
-          updateUI(response.members);
-        } else {
-          isConnected = false;
-          updateUI();
-        }
+          if (response) {
+            isConnected = response.isConnected;
+            currentRoomId = response.roomId;
+            isHost = response.isHost;
+            updateUI(response.members);
+          } else {
+            isConnected = false;
+            updateUI();
+          }
+        });
       });
     });
   }
 
   // Create new room
   function createRoom() {
-    wsUrl = elements.wsUrlInput.value.trim();
+    const inputUrl = elements.wsUrlInput.value.trim();
+    const validatedUrl = convertToWebSocketUrl(inputUrl);
 
-    if (!wsUrl) {
-      alert('서버 주소를 입력해주세요.');
+    if (!validatedUrl) {
+      alert('올바른 서버 주소를 입력해주세요.');
+      elements.wsUrlInput.value = wsUrl; // Revert to last good or empty
       return;
     }
 
-    wsUrl = convertToWebSocketUrl(wsUrl);
+    wsUrl = validatedUrl;
     elements.wsUrlInput.value = wsUrl;
 
+    // Generate room ID early
     const roomId = generateRoomId();
 
     getLaftelTab((tab) => {
@@ -141,25 +154,29 @@
         return;
       }
 
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'connect',
-        wsUrl: wsUrl,
-        roomId: roomId,
-        isHost: true
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          alert('연결에 실패했습니다. 페이지를 새로고침하고 다시 시도해 주세요.');
-          return;
-        }
+      ensureContentScript(tab.id, () => {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'connect',
+          wsUrl: wsUrl,
+          roomId: roomId,
+          isHost: true
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            alert('연결에 실패했습니다. 관리자에게 문의하세요.');
+            return;
+          }
 
-        currentRoomId = roomId;
-        isHost = true;
-        isConnected = true;
-        chrome.storage.local.set({ wsUrl, roomId, isHost: true });
-
-        setTimeout(checkCurrentTabStatus, 500);
-        copyToClipboard(roomId);
-        showToast();
+          // Save to storage ONLY after successful message send
+          currentRoomId = roomId;
+          isHost = true;
+          isConnected = true;
+          chrome.storage.local.set({ wsUrl, roomId, isHost: true }, () => {
+            updateUI(); // Update UI after storage is confirmed
+            setTimeout(checkCurrentTabStatus, 500);
+            copyToClipboard(roomId);
+            showToast();
+          });
+        });
       });
     });
   }
@@ -167,19 +184,21 @@
   // Join existing room
   function joinRoom() {
     const roomId = elements.joinRoomIdInput.value.trim().toUpperCase();
-    wsUrl = elements.wsUrlInput.value.trim();
+    const inputUrl = elements.wsUrlInput.value.trim();
+    const validatedUrl = convertToWebSocketUrl(inputUrl);
 
     if (!roomId) {
       alert('방 코드를 입력해주세요.');
       return;
     }
 
-    if (!wsUrl) {
-      alert('서버 주소를 입력해주세요.');
+    if (!validatedUrl) {
+      alert('올바른 서버 주소를 입력해주세요.');
+      elements.wsUrlInput.value = wsUrl; // Revert
       return;
     }
 
-    wsUrl = convertToWebSocketUrl(wsUrl);
+    wsUrl = validatedUrl;
     elements.wsUrlInput.value = wsUrl;
 
     getLaftelTab((tab) => {
@@ -188,23 +207,27 @@
         return;
       }
 
-      chrome.tabs.sendMessage(tab.id, {
-        type: 'connect',
-        wsUrl: wsUrl,
-        roomId: roomId,
-        isHost: false
-      }, (response) => {
-        if (chrome.runtime.lastError) {
-          alert('연결에 실패했습니다. 페이지를 새로고침하고 다시 시도해 주세요.');
-          return;
-        }
+      ensureContentScript(tab.id, () => {
+        chrome.tabs.sendMessage(tab.id, {
+          type: 'connect',
+          wsUrl: wsUrl,
+          roomId: roomId,
+          isHost: false
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            alert('방 입장에 실패했습니다. 코드를 확인해 주세요.');
+            return;
+          }
 
-        currentRoomId = roomId;
-        isHost = false;
-        isConnected = true;
-        chrome.storage.local.set({ wsUrl, roomId, isHost: false });
+          currentRoomId = roomId;
+          isHost = false;
+          isConnected = true;
 
-        setTimeout(checkCurrentTabStatus, 500);
+          chrome.storage.local.set({ wsUrl, roomId, isHost: false }, () => {
+            updateUI(); // Update UI after storage is confirmed
+            setTimeout(checkCurrentTabStatus, 500);
+          });
+        });
       });
     });
   }
@@ -242,29 +265,32 @@
 
   // Update UI logic
   function updateUI(members = []) {
+    const statusText = elements.status.querySelector('.status-text');
+    const setupContainer = document.getElementById('setupContainer');
+
     if (isConnected && currentRoomId) {
       elements.status.className = 'status-badge connected';
-      elements.status.innerHTML = '<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg> 서버 연결됨';
+      // If we have roomId but checkCurrentTabStatus hasn't confirmed connection yet, show 'CONNECTING'
+      statusText.textContent = isConnected ? 'ONLINE' : 'CONNECTING...';
 
       elements.roomInfo.style.display = 'block';
-      elements.setupSection.style.display = 'none';
-      elements.joinSection.style.display = 'none';
-      elements.leaveRoomBtn.style.display = 'block';
+      if (setupContainer) setupContainer.style.display = 'none';
 
       elements.roomIdDisplay.textContent = currentRoomId;
       elements.modeDisplay.textContent = isHost ? '호스트' : '참여자';
 
       // Member list handling
       elements.memberCount.textContent = members.length || (currentRoomId ? '1' : '0');
+      elements.memberList.innerHTML = '';
+
       if (members.length > 0) {
-        elements.memberList.innerHTML = '';
         members.forEach(member => {
           const div = document.createElement('div');
           div.className = 'member-item';
 
           const id = document.createElement('span');
           id.className = 'member-id';
-          id.textContent = member.clientId;
+          id.textContent = member.clientId; // Use full or compact client ID as provided
 
           const role = document.createElement('span');
           role.className = 'member-role' + (member.isHost ? ' host' : '');
@@ -276,19 +302,27 @@
         });
       }
 
-      // Request sync only for participants
+      // Sync button only for participants
       elements.requestSyncBtn.style.display = isHost ? 'none' : 'flex';
 
     } else {
       elements.status.className = 'status-badge disconnected';
-      elements.status.innerHTML = '<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg> 서버 연결 안 됨';
+      statusText.textContent = 'OFFLINE';
 
       elements.roomInfo.style.display = 'none';
-      elements.setupSection.style.display = 'block';
-      elements.joinSection.style.display = 'block';
-      elements.leaveRoomBtn.style.display = 'none';
+      if (setupContainer) setupContainer.style.display = 'block';
     }
   }
+
+  // Listen for status updates from content script
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'status_update') {
+      isConnected = message.isConnected;
+      currentRoomId = message.roomId;
+      isHost = message.isHost;
+      updateUI(message.members);
+    }
+  });
 
   // Helper: Get Laftel tab
   function getLaftelTab(callback) {
@@ -297,13 +331,50 @@
     });
   }
 
+  // Helper: Ensure content script is injected
+  function ensureContentScript(tabId, callback) {
+    chrome.tabs.sendMessage(tabId, { type: 'ping' }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.log('[LWT] Content script not detected, injecting...');
+        chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content.js']
+        }).then(() => {
+          chrome.scripting.insertCSS({
+            target: { tabId },
+            files: ['content.css']
+          }).then(() => {
+            console.log('[LWT] Content script and CSS injected');
+            setTimeout(callback, 500); // Give it a moment to initialize
+          }).catch(err => {
+            console.error('[LWT] CSS injection error:', err);
+            setTimeout(callback, 500); // Still try to proceed
+          });
+        }).catch(err => {
+          console.error('[LWT] Script injection error:', err);
+          alert('확장 프로그램을 초기화할 수 없습니다. 페이지를 수동으로 새로고침해 주세요.');
+        });
+      } else {
+        callback();
+      }
+    });
+  }
+
   // Helper: URL conversion
   function convertToWebSocketUrl(url) {
     if (!url) return '';
     url = url.trim();
+
+    // Basic validation: must contain at least one dot to be a domain/host
+    // and shouldn't be too short (like a room code)
+    if (!url.includes('.') && !url.includes('localhost')) {
+      return null;
+    }
+
     if (url.startsWith('ws://') || url.startsWith('wss://')) return url;
     if (url.startsWith('http://')) return url.replace('http://', 'ws://');
     if (url.startsWith('https://')) return url.replace('https://', 'wss://');
+
     if (!url.includes('://')) {
       if (url.includes('localhost')) return `ws://${url}`;
       return `wss://${url}`;

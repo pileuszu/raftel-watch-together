@@ -7,145 +7,141 @@
   <title>라프텔 함께 보기</title>
   <style>
     :root {
-      --primary: #ff445e;
-      --bg: #121212;
-      --surface: #1e1e1e;
-      --header-bg: #181818;
-      --text: #ffffff;
-      --text-dim: #a0a0a0;
-      --border: #333333;
-      --success: #00c853;
-      --error: #ff3d00;
-      --radius: 12px;
-      --transition: all 0.2s ease;
+      --primary: #75b9be;
+      /* Teal */
+      --primary-hover: #987284;
+      /* Mauve */
+      --bg: #fdfaf6;
+      /* Ivory */
+      --surface: #ffffff;
+      --surface-hover: #f9f7f2;
+      --text: #1a1a1a;
+      --text-dim: #64748b;
+      --border: #e8e4db;
+      --success: #6cae75;
+      --error: #ee7674;
+      --accent: #987284;
+      --radius: 10px;
+      --transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
-      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
     body {
-      width: 360px;
+      width: 320px;
       background: var(--bg);
       color: var(--text);
       overflow-x: hidden;
+      line-height: 1.4;
     }
 
     .header {
-      padding: 24px 20px;
-      background: var(--header-bg);
-      border-bottom: 3px solid var(--primary);
-      text-align: center;
+      padding: 18px 20px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      background: #ffffff;
     }
 
-    .header h1 {
-      font-size: 20px;
+    .header-content h1 {
+      font-size: 16px;
       font-weight: 800;
-      letter-spacing: -0.5px;
-      margin-bottom: 4px;
+      letter-spacing: -0.4px;
+      color: var(--text);
     }
 
-    .header p {
-      font-size: 13px;
-      color: var(--text-dim);
+    .header-content p {
+      display: none;
     }
 
     .container {
-      padding: 20px;
+      padding: 16px 20px 4px;
     }
 
     .status-badge {
-      display: inline-flex;
+      display: flex;
       align-items: center;
-      padding: 6px 14px;
+      padding: 4px 10px;
       border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      margin-bottom: 20px;
-      width: 100%;
-      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
       gap: 6px;
+      background: #ffffff;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+
+    .indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
     }
 
     .status-badge.connected {
-      background: rgba(0, 200, 83, 0.1);
-      color: var(--success);
-      border: 1px solid rgba(0, 200, 83, 0.2);
+      color: var(--primary);
+      border-color: var(--primary);
     }
 
-    .status-badge.disconnected {
-      background: rgba(255, 61, 0, 0.1);
-      color: var(--error);
-      border: 1px solid rgba(255, 61, 0, 0.2);
+    .status-badge.connected .indicator {
+      background: var(--primary);
+      box-shadow: 0 0 6px var(--primary);
     }
 
-    .status-badge svg {
-      width: 8px;
-      height: 8px;
-      fill: currentColor;
+    .status-badge.disconnected .indicator {
+      background: var(--error);
     }
 
     .section {
-      background: var(--surface);
-      border-radius: var(--radius);
-      padding: 16px;
-      margin-bottom: 16px;
-      border: 1px solid var(--border);
-    }
-
-    .section-title {
-      font-size: 13px;
-      font-weight: 700;
-      color: var(--text-dim);
-      margin-bottom: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    .input-group {
       margin-bottom: 12px;
     }
 
-    .input-group label {
-      display: block;
-      font-size: 12px;
-      color: var(--text-dim);
-      margin-bottom: 6px;
-      font-weight: 500;
+    .section:last-child {
+      margin-bottom: 0;
     }
 
-    .input-wrapper {
-      position: relative;
-      display: flex;
-      gap: 8px;
+    .section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .input-group {
+      margin-bottom: 10px;
     }
 
     input {
       width: 100%;
-      background: #2a2a2a;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      background: #ffffff;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius);
       padding: 10px 12px;
       color: var(--text);
-      font-size: 14px;
-      outline: none;
+      font-size: 13px;
       transition: var(--transition);
+      outline: none;
     }
 
     input:focus {
       border-color: var(--primary);
-      background: #333;
+      box-shadow: 0 0 0 3px rgba(117, 185, 190, 0.1);
     }
 
     .btn {
       width: 100%;
-      padding: 12px;
+      padding: 10px;
       border: none;
-      border-radius: 8px;
-      font-size: 14px;
+      border-radius: var(--radius);
+      font-size: 13px;
       font-weight: 700;
       cursor: pointer;
       transition: var(--transition);
@@ -155,233 +151,235 @@
       gap: 8px;
     }
 
-    .btn:active {
-      transform: scale(0.98);
-    }
-
     .btn-primary {
       background: var(--primary);
       color: white;
+      box-shadow: 0 4px 6px -1px rgba(117, 185, 190, 0.2);
     }
 
     .btn-primary:hover {
-      background: #ff5e73;
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 12px -2px rgba(152, 114, 132, 0.3);
     }
 
     .btn-secondary {
-      background: #333;
-      color: white;
+      background: #ffffff;
+      color: var(--accent);
+      border: 1.5px solid var(--border);
     }
 
     .btn-secondary:hover {
-      background: #444;
+      background: var(--bg);
+      border-color: var(--accent);
     }
 
     .btn-danger {
-      background: rgba(255, 61, 0, 0.1);
-      color: var(--error);
-      border: 1px solid rgba(255, 61, 0, 0.2);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 11px;
+      font-weight: 600;
     }
 
     .btn-danger:hover {
-      background: rgba(255, 61, 0, 0.2);
+      color: var(--error);
+      background: #fff5f5;
     }
 
-    .btn-small {
-      padding: 8px 12px;
-      font-size: 12px;
-      width: auto;
+    .card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
     }
 
-    .room-details {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 14px;
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
     }
 
-    .detail-item {
-      background: #2a2a2a;
-      padding: 10px;
-      border-radius: 8px;
+    .info-row:last-child {
+      margin-bottom: 0;
     }
 
-    .detail-label {
+    .info-label {
       font-size: 11px;
       color: var(--text-dim);
-      margin-bottom: 4px;
+      font-weight: 500;
     }
 
-    .detail-value {
+    .info-value {
       font-size: 13px;
       font-weight: 700;
-      color: var(--text);
-      word-break: break-all;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .member-list {
-      margin-top: 12px;
-      background: rgba(0, 0, 0, 0.2);
-      border-radius: 8px;
-      max-height: 120px;
-      overflow-y: auto;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid var(--border);
     }
 
     .member-item {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 12px;
-      border-bottom: 1px solid #2a2a2a;
-    }
-
-    .member-item:last-child {
-      border-bottom: none;
+      padding: 5px 0;
+      font-size: 12px;
     }
 
     .member-id {
-      font-size: 12px;
-      color: var(--text);
-    }
-
-    .member-role {
-      font-size: 10px;
-      font-weight: 800;
-      padding: 2px 6px;
-      border-radius: 4px;
-      background: #444;
       color: var(--text-dim);
     }
 
+    .member-role {
+      font-size: 9px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #f1f5f9;
+      color: #475569;
+      font-weight: 800;
+    }
+
     .member-role.host {
-      background: rgba(255, 61, 0, 0.2);
+      background: #fff1f2;
       color: var(--error);
     }
 
     .footer {
-      padding: 0 20px 20px;
-      font-size: 11px;
+      padding: 12px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
       color: var(--text-dim);
-      text-align: center;
+      background: #ffffff;
     }
 
     .footer a {
-      color: var(--primary);
+      color: var(--accent);
       text-decoration: none;
-    }
-
-    #leaveRoom {
-      margin-top: 8px;
+      font-weight: 700;
     }
 
     .icon-btn {
       background: none;
       border: none;
       cursor: pointer;
-      padding: 4px;
       color: var(--text-dim);
       display: flex;
-      align-items: center;
+      transition: var(--transition);
+      padding: 3px;
+      border-radius: 4px;
     }
 
     .icon-btn:hover {
-      color: var(--text);
+      color: var(--primary);
+      background: var(--bg);
     }
 
     .copy-toast {
       position: fixed;
-      bottom: 20px;
+      bottom: 50px;
       left: 50%;
       transform: translateX(-50%);
-      background: var(--primary);
-      color: white;
+      background: #1a1a1a;
+      color: #ffffff;
       padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 12px;
+      border-radius: 30px;
+      font-size: 11px;
       font-weight: 600;
       opacity: 0;
-      transition: opacity 0.3s;
+      transition: opacity 0.2s;
       pointer-events: none;
       z-index: 1000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     }
   </style>
 </head>
 
 <body>
   <div class="header">
-    <h1>🎬 라프텔 함께 보기</h1>
-    <p>실시간으로 친구와 애니메이션을 감상하세요</p>
+    <div class="header-content">
+      <h1>Laftel Watch Together</h1>
+    </div>
+    <div id="status" class="status-badge disconnected">
+      <span class="indicator"></span>
+      <span class="status-text">OFFLINE</span>
+    </div>
   </div>
 
   <div class="container">
-    <div id="status" class="status-badge disconnected">
-      <svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
-      서버 연결 안 됨
-    </div>
-
-    <!-- 방 정보 (활성화 시 보임) -->
-    <div id="roomInfo" class="section" style="display: none;">
-      <div class="section-title">현재 방 정보</div>
-      <div class="room-details">
-        <div class="detail-item">
-          <div class="detail-label">방 코드</div>
-          <div class="detail-value" style="display: flex; align-items: center; gap: 4px;">
+    <!-- 방 정보 (연결 시) -->
+    <div id="roomInfo" class="section" style="display: none; margin-bottom: 0;">
+      <div class="section-title">활성 세션</div>
+      <div class="card">
+        <div class="info-row">
+          <span class="info-label">방 코드</span>
+          <span class="info-value">
             <span id="roomIdDisplay">-</span>
-            <button id="copyRoomId" class="icon-btn" title="방 코드 복사">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            <button id="copyRoomId" class="icon-btn" title="복사">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
             </button>
+          </span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">권한</span>
+          <span class="info-value" id="modeDisplay">-</span>
+        </div>
+        <div class="member-list">
+          <div class="info-row">
+            <span class="info-label">참여자 (<span id="memberCount">0</span>)</span>
           </div>
-        </div>
-        <div class="detail-item">
-          <div class="detail-label">나의 역할</div>
-          <div class="detail-value" id="modeDisplay">-</div>
+          <div id="memberList"></div>
         </div>
       </div>
-      
-      <button id="requestSync" class="btn btn-secondary btn-small" style="width: 100%; margin-bottom: 12px;">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-        지금 동기화하기
-      </button>
-
-      <div class="detail-label">참여자 (<span id="memberCount">0</span>명)</div>
-      <div id="memberList" class="member-list">
-        <!-- 참여자 목록 -->
-      </div>
+      <button id="requestSync" class="btn btn-primary" style="margin-bottom: 8px;">동기화 요청</button>
+      <button id="leaveRoom" class="btn btn-danger">연결 종료</button>
     </div>
 
-    <!-- 연결 설정 -->
-    <div id="setupSection" class="section">
-      <div class="section-title">서버 설정</div>
-      <div class="input-group">
-        <label for="wsUrl">서버 주소 (WebSocket)</label>
-        <div class="input-wrapper">
-          <input type="text" id="wsUrl" placeholder="wss://your-app.onrender.com">
+    <!-- 설정/입장 (로그인 전) -->
+    <div id="setupContainer">
+      <div id="setupSection" class="section">
+        <div class="section-title">서버 설정</div>
+        <div class="input-group">
+          <input type="text" id="wsUrl" placeholder="wss://server-url.com" autocomplete="off" autocorrect="off"
+            spellcheck="false" autocapitalize="off">
         </div>
+        <button id="createRoom" class="btn btn-primary">새 방 만들기</button>
       </div>
-      <button id="createRoom" class="btn btn-primary">새로운 방 만들기</button>
-    </div>
 
-    <!-- 방 참여 -->
-    <div id="joinSection" class="section">
-      <div class="section-title">방 디자인</div>
-      <div class="input-group">
-        <label for="joinRoomId">참여할 방 코드</label>
-        <input type="text" id="joinRoomId" placeholder="방 코드를 입력하세요">
+      <div id="joinSection" class="section">
+        <div class="section-title">방 입장</div>
+        <div class="input-group">
+          <input type="text" id="joinRoomId" placeholder="방 코드를 입력하세요" autocomplete="off" autocorrect="off"
+            spellcheck="false" autocapitalize="off">
+        </div>
+        <button id="joinRoom" class="btn btn-secondary">참여하기</button>
       </div>
-      <button id="joinRoom" class="btn btn-secondary">방 입장하기</button>
     </div>
-
-    <button id="leaveRoom" class="btn btn-danger" style="display: none;">방 나가기</button>
   </div>
 
   <div class="footer">
-    💡 라프텔 영상 페이지(laftel.net)에서만 작동합니다.<br>
-    <a href="#" id="showDeployGuide">서버 배포 가이드 보기</a>
+    <span>laftel.net 전용</span>
+    <a href="#" id="showDeployGuide">배포 가이드</a>
   </div>
 
-  <div id="copyToast" class="copy-toast">방 코드가 복사되었습니다!</div>
+  <div id="copyToast" class="copy-toast">복사되었습니다</div>
 
   <script src="popup.js"></script>
 </body>
+
+</html>
 
 </html>

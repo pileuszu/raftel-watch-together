@@ -392,6 +392,7 @@
         roomId = data.roomId;
         updateStatusUI();
         startHostSync();
+        notifyPopup(); // Notify popup after room creation
         break;
 
       case 'room_joined':
@@ -401,6 +402,7 @@
         updateStatusUI();
         if (isHost) startHostSync();
         else stopHostSync();
+        notifyPopup(); // Notify popup after joining
         break;
 
       case 'room_left':
@@ -409,6 +411,7 @@
         isHost = false;
         updateStatusUI();
         stopHostSync();
+        notifyPopup(); // Notify popup after leaving
         break;
 
       case 'host_assigned':
@@ -418,11 +421,13 @@
         // Notify storage for popup sync
         chrome.storage.local.set({ isHost: true });
         startHostSync();
+        notifyPopup(); // Notify popup after host change
         break;
 
       case 'room_members':
         // console.log('[LWT] Members updated:', data.members);
         members = data.members;
+        notifyPopup(); // Notify popup on member list update
         break;
 
       case 'error':
@@ -436,6 +441,7 @@
             isHost = false;
             updateStatusUI();
             stopHostSync();
+            notifyPopup(); // Notify popup of state reset
           }
         } else {
           alert(`Error: ${data.message}`);
@@ -591,6 +597,19 @@
     statusEl.textContent = isHost ? '🔴 Host Mode' : '👥 Watching Together';
   }
 
+  // Notify popup of status/member changes
+  function notifyPopup() {
+    chrome.runtime.sendMessage({
+      type: 'status_update',
+      isConnected,
+      roomId,
+      isHost,
+      members
+    }).catch(() => {
+      // Ignore errors if popup is closed
+    });
+  }
+
   // Listen for messages from popup/background
   function listenForMessages() {
     chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -615,6 +634,10 @@
             isHost,
             members // Send current member list
           });
+          break;
+
+        case 'ping':
+          sendResponse({ success: true });
           break;
 
         case 'request_sync':
