@@ -25,6 +25,12 @@
   const RECONNECT_DELAY = 3000;
   const TIME_DIFF_THRESHOLD = 0.5;
   const HOST_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+  const HEARTBEAT_INTERVAL_MS = 30 * 1000; // 30 seconds
+  const KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+
+  // Intervals
+  let heartbeatInterval = null;
+  let keepAliveInterval = null;
 
   // Initialize
   function init() {
@@ -79,6 +85,8 @@
         }
 
         updateStatusUI();
+        startHeartbeat();
+        startKeepAlive();
       };
 
       ws.onmessage = (event) => {
@@ -109,6 +117,8 @@
         isConnected = false;
         updateStatusUI();
         stopHostSync();
+        stopHeartbeat();
+        stopKeepAlive();
 
         // Reconnect if we still have room info
         if (roomId && wsUrl) {
@@ -215,6 +225,8 @@
         }
 
         updateStatusUI();
+        startHeartbeat();
+        startKeepAlive();
       };
 
       ws.onmessage = (event) => {
@@ -237,6 +249,8 @@
         isConnected = false;
         updateStatusUI();
         stopHostSync();
+        stopHeartbeat();
+        stopKeepAlive();
 
         // Reconnect if we still have room info
         if (roomId && wsUrl) {
@@ -263,6 +277,8 @@
 
     isConnected = false;
     stopHostSync();
+    stopHeartbeat();
+    stopKeepAlive();
 
     // Only clear local state if explicitly leaving (not page navigation)
     if (!keepStorage) {
@@ -322,6 +338,48 @@
     if (hostSyncInterval) {
       clearInterval(hostSyncInterval);
       hostSyncInterval = null;
+    }
+  }
+
+  // Heartbeat to keep WebSocket connection alive
+  function startHeartbeat() {
+    stopHeartbeat();
+    heartbeatInterval = setInterval(() => {
+      if (isConnected) {
+        sendToServer({ type: 'ping' });
+      }
+    }, HEARTBEAT_INTERVAL_MS);
+  }
+
+  function stopHeartbeat() {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      heartbeatInterval = null;
+    }
+  }
+
+  // Keep-alive to prevent Render spin-down
+  function startKeepAlive() {
+    stopKeepAlive();
+
+    const keepAlive = () => {
+      if (!wsUrl) return;
+      try {
+        const httpUrl = wsUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+        const healthUrl = new URL('/health', httpUrl).href;
+        fetch(healthUrl).catch(() => { });
+      } catch (e) { }
+    };
+
+    // Initial call
+    keepAlive();
+    keepAliveInterval = setInterval(keepAlive, KEEP_ALIVE_INTERVAL_MS);
+  }
+
+  function stopKeepAlive() {
+    if (keepAliveInterval) {
+      clearInterval(keepAliveInterval);
+      keepAliveInterval = null;
     }
   }
 
@@ -557,6 +615,13 @@
             isHost,
             members // Send current member list
           });
+          break;
+
+        case 'request_sync':
+          if (isConnected && !isHost) {
+            sendToServer({ type: 'sync_request' });
+          }
+          sendResponse({ success: true });
           break;
       }
 

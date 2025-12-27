@@ -13,6 +13,8 @@
   const elements = {
     status: document.getElementById('status'),
     roomInfo: document.getElementById('roomInfo'),
+    setupSection: document.getElementById('setupSection'),
+    joinSection: document.getElementById('joinSection'),
     roomIdDisplay: document.getElementById('roomIdDisplay'),
     modeDisplay: document.getElementById('modeDisplay'),
     memberCount: document.getElementById('memberCount'),
@@ -22,7 +24,9 @@
     joinRoomBtn: document.getElementById('joinRoom'),
     joinRoomIdInput: document.getElementById('joinRoomId'),
     leaveRoomBtn: document.getElementById('leaveRoom'),
-    convertUrlBtn: document.getElementById('convertUrl'),
+    requestSyncBtn: document.getElementById('requestSync'),
+    copyRoomIdBtn: document.getElementById('copyRoomId'),
+    copyToast: document.getElementById('copyToast'),
     showDeployGuideBtn: document.getElementById('showDeployGuide')
   };
 
@@ -46,7 +50,6 @@
         isHost = result.isHost || false;
       }
 
-      // Initial UI update (no members yet)
       updateUI();
     });
   }
@@ -58,16 +61,6 @@
       wsUrl = convertToWebSocketUrl(elements.wsUrlInput.value.trim());
       elements.wsUrlInput.value = wsUrl;
       chrome.storage.local.set({ wsUrl });
-    });
-
-    // Convert URL button
-    elements.convertUrlBtn.addEventListener('click', () => {
-      const converted = convertToWebSocketUrl(elements.wsUrlInput.value);
-      if (converted !== elements.wsUrlInput.value) {
-        elements.wsUrlInput.value = converted;
-        wsUrl = converted;
-        chrome.storage.local.set({ wsUrl });
-      }
     });
 
     // Create room
@@ -82,10 +75,21 @@
     // Leave room
     elements.leaveRoomBtn.addEventListener('click', leaveRoom);
 
+    // Request Sync
+    elements.requestSyncBtn.addEventListener('click', requestSync);
+
+    // Copy Room ID
+    elements.copyRoomIdBtn.addEventListener('click', () => {
+      if (currentRoomId) {
+        copyToClipboard(currentRoomId);
+        showToast();
+      }
+    });
+
     // Deploy guide
     elements.showDeployGuideBtn.addEventListener('click', (e) => {
       e.preventDefault();
-      alert('Deploy to Render (free):\n\n1. Go to render.com\n2. Connect GitHub repo\n3. Set Root Directory to "server"\n4. Deploy!\n\nSee RENDER_DEPLOY.md for details.');
+      alert('서버 배포 가이드 (Render 무료 티어):\n\n1. render.com 가입\n2. GitHub 저장소 연결\n3. Root Directory를 "server"로 설정\n4. 빌드 및 배포!\n\n자세한 내용은 RENDER_DEPLOY.md를 참조하세요.');
     });
   }
 
@@ -99,7 +103,7 @@
 
       chrome.tabs.sendMessage(tab.id, { type: 'get_status' }, (response) => {
         if (chrome.runtime.lastError) {
-          // Content script not ready
+          isConnected = false;
           updateUI();
           return;
         }
@@ -108,9 +112,9 @@
           isConnected = response.isConnected;
           currentRoomId = response.roomId;
           isHost = response.isHost;
-
           updateUI(response.members);
         } else {
+          isConnected = false;
           updateUI();
         }
       });
@@ -122,7 +126,7 @@
     wsUrl = elements.wsUrlInput.value.trim();
 
     if (!wsUrl) {
-      alert('Please enter WebSocket server URL');
+      alert('서버 주소를 입력해주세요.');
       return;
     }
 
@@ -133,11 +137,10 @@
 
     getLaftelTab((tab) => {
       if (!tab) {
-        alert('Please open a Laftel page first.\n(https://laftel.net)');
+        alert('라프텔 영상 페이지를 먼저 열어주세요.\n(https://laftel.net)');
         return;
       }
 
-      // Send connect message to content script
       chrome.tabs.sendMessage(tab.id, {
         type: 'connect',
         wsUrl: wsUrl,
@@ -145,20 +148,18 @@
         isHost: true
       }, (response) => {
         if (chrome.runtime.lastError) {
-          alert('Failed to connect. Please refresh the Laftel page and try again.');
+          alert('연결에 실패했습니다. 페이지를 새로고침하고 다시 시도해 주세요.');
           return;
         }
 
-        // Save to storage
         currentRoomId = roomId;
         isHost = true;
+        isConnected = true;
         chrome.storage.local.set({ wsUrl, roomId, isHost: true });
 
-        // Wait a bit for connection to establish and members to update
         setTimeout(checkCurrentTabStatus, 500);
-
         copyToClipboard(roomId);
-        alert(`Room created!\nRoom ID: ${roomId}\n(Copied to clipboard)`);
+        showToast();
       });
     });
   }
@@ -169,12 +170,12 @@
     wsUrl = elements.wsUrlInput.value.trim();
 
     if (!roomId) {
-      alert('Please enter room ID');
+      alert('방 코드를 입력해주세요.');
       return;
     }
 
     if (!wsUrl) {
-      alert('Please enter WebSocket server URL');
+      alert('서버 주소를 입력해주세요.');
       return;
     }
 
@@ -183,11 +184,10 @@
 
     getLaftelTab((tab) => {
       if (!tab) {
-        alert('Please open a Laftel page first.\n(https://laftel.net)');
+        alert('라프텔 영상 페이지를 먼저 열어주세요.\n(https://laftel.net)');
         return;
       }
 
-      // Send connect message to content script
       chrome.tabs.sendMessage(tab.id, {
         type: 'connect',
         wsUrl: wsUrl,
@@ -195,19 +195,16 @@
         isHost: false
       }, (response) => {
         if (chrome.runtime.lastError) {
-          alert('Failed to connect. Please refresh the Laftel page and try again.');
+          alert('연결에 실패했습니다. 페이지를 새로고침하고 다시 시도해 주세요.');
           return;
         }
 
-        // Save to storage
         currentRoomId = roomId;
         isHost = false;
+        isConnected = true;
         chrome.storage.local.set({ wsUrl, roomId, isHost: false });
 
-        // Wait a bit for connection to establish and members to update
         setTimeout(checkCurrentTabStatus, 500);
-
-        alert('Joined room!');
       });
     });
   }
@@ -217,126 +214,111 @@
     getLaftelTab((tab) => {
       if (tab) {
         chrome.tabs.sendMessage(tab.id, { type: 'disconnect' }, () => {
-          if (chrome.runtime.lastError) {
-            // Ignore error
-          }
+          if (chrome.runtime.lastError) { /* ignore */ }
         });
       }
 
-      // Clear storage
       chrome.storage.local.remove(['roomId', 'isHost']);
       currentRoomId = null;
       isHost = false;
       isConnected = false;
 
       updateUI();
-      alert('Left room');
     });
   }
 
-  // Update UI based on state
+  // Request Sync
+  function requestSync() {
+    getLaftelTab((tab) => {
+      if (tab) {
+        chrome.tabs.sendMessage(tab.id, { type: 'request_sync' }, (response) => {
+          if (chrome.runtime.lastError) {
+            alert('영상 동기화 요청에 실패했습니다.');
+          }
+        });
+      }
+    });
+  }
+
+  // Update UI logic
   function updateUI(members = []) {
-    if (currentRoomId) {
-      elements.status.style.display = 'block';
-      elements.status.className = 'status connected';
-      elements.status.textContent = 'Connected';
+    if (isConnected && currentRoomId) {
+      elements.status.className = 'status-badge connected';
+      elements.status.innerHTML = '<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg> 서버 연결됨';
 
       elements.roomInfo.style.display = 'block';
-      elements.roomIdDisplay.textContent = currentRoomId;
-      elements.modeDisplay.textContent = isHost ? 'Host' : 'Participant';
+      elements.setupSection.style.display = 'none';
+      elements.joinSection.style.display = 'none';
+      elements.leaveRoomBtn.style.display = 'block';
 
-      // Update member list
-      if (members && members.length > 0) {
-        elements.memberCount.textContent = members.length;
+      elements.roomIdDisplay.textContent = currentRoomId;
+      elements.modeDisplay.textContent = isHost ? '호스트' : '참여자';
+
+      // Member list handling
+      elements.memberCount.textContent = members.length || (currentRoomId ? '1' : '0');
+      if (members.length > 0) {
         elements.memberList.innerHTML = '';
         members.forEach(member => {
           const div = document.createElement('div');
           div.className = 'member-item';
 
-          const idSpan = document.createElement('span');
-          idSpan.className = 'member-id';
-          idSpan.textContent = member.clientId;
+          const id = document.createElement('span');
+          id.className = 'member-id';
+          id.textContent = member.clientId;
 
-          const roleSpan = document.createElement('span');
-          if (member.isHost) {
-            roleSpan.className = 'member-role host';
-            roleSpan.textContent = 'HOST';
-          } else {
-            roleSpan.className = 'member-role';
-            roleSpan.textContent = 'Member';
-          }
+          const role = document.createElement('span');
+          role.className = 'member-role' + (member.isHost ? ' host' : '');
+          role.textContent = member.isHost ? 'HOST' : 'GUEST';
 
-          div.appendChild(idSpan);
-          div.appendChild(roleSpan);
+          div.appendChild(id);
+          div.appendChild(role);
           elements.memberList.appendChild(div);
         });
-      } else {
-        // Default if no members data yet
-        if (elements.memberCount.textContent === '-') elements.memberCount.textContent = '1';
       }
 
-      elements.createRoomBtn.disabled = true;
-      elements.joinRoomBtn.disabled = true;
-      elements.joinRoomIdInput.disabled = true;
-      elements.leaveRoomBtn.style.display = 'block';
+      // Request sync only for participants
+      elements.requestSyncBtn.style.display = isHost ? 'none' : 'flex';
+
     } else {
-      elements.status.style.display = 'block';
-      elements.status.className = 'status disconnected';
-      elements.status.textContent = 'Not connected';
+      elements.status.className = 'status-badge disconnected';
+      elements.status.innerHTML = '<svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg> 서버 연결 안 됨';
 
       elements.roomInfo.style.display = 'none';
-
-      elements.createRoomBtn.disabled = false;
-      elements.joinRoomBtn.disabled = false;
-      elements.joinRoomIdInput.disabled = false;
+      elements.setupSection.style.display = 'block';
+      elements.joinSection.style.display = 'block';
       elements.leaveRoomBtn.style.display = 'none';
     }
   }
 
-  // Get Laftel tab
+  // Helper: Get Laftel tab
   function getLaftelTab(callback) {
     chrome.tabs.query({ url: 'https://laftel.net/*' }, (tabs) => {
       callback(tabs.length > 0 ? tabs[0] : null);
     });
   }
 
-  // Convert URL to WebSocket URL
+  // Helper: URL conversion
   function convertToWebSocketUrl(url) {
     if (!url) return '';
-
     url = url.trim();
-
-    if (url.startsWith('ws://') || url.startsWith('wss://')) {
-      return url;
-    }
-
-    if (url.startsWith('http://')) {
-      return url.replace('http://', 'ws://');
-    }
-
-    if (url.startsWith('https://')) {
-      return url.replace('https://', 'wss://');
-    }
-
+    if (url.startsWith('ws://') || url.startsWith('wss://')) return url;
+    if (url.startsWith('http://')) return url.replace('http://', 'ws://');
+    if (url.startsWith('https://')) return url.replace('https://', 'wss://');
     if (!url.includes('://')) {
-      if (url.includes('localhost') || /^\d+\.\d+\.\d+\.\d+/.test(url)) {
-        return `ws://${url}`;
-      }
+      if (url.includes('localhost')) return `ws://${url}`;
       return `wss://${url}`;
     }
-
     return url;
   }
 
-  // Generate room ID
+  // Helper: Room ID generation
   function generateRoomId() {
     return Math.random().toString(36).substring(2, 9).toUpperCase();
   }
 
-  // Copy to clipboard
+  // Helper: Copy to clipboard
   function copyToClipboard(text) {
     navigator.clipboard.writeText(text).catch(() => {
-      // Fallback
       const textarea = document.createElement('textarea');
       textarea.value = text;
       textarea.style.cssText = 'position:fixed;opacity:0';
@@ -347,6 +329,13 @@
     });
   }
 
-  // Start
+  // Helper: Show toast
+  function showToast() {
+    elements.copyToast.style.opacity = '1';
+    setTimeout(() => {
+      elements.copyToast.style.opacity = '0';
+    }, 2000);
+  }
+
   init();
 })();

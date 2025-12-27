@@ -1,222 +1,238 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Laftel Watch Together</title>
+  <title>라프텔 함께 보기</title>
   <style>
+    :root {
+      --primary: #ff445e;
+      --bg: #121212;
+      --surface: #1e1e1e;
+      --header-bg: #181818;
+      --text: #ffffff;
+      --text-dim: #a0a0a0;
+      --border: #333333;
+      --success: #00c853;
+      --error: #ff3d00;
+      --radius: 12px;
+      --transition: all 0.2s ease;
+    }
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     }
 
     body {
-      width: 350px;
-      padding: 20px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #1a1a1a;
-      color: #fff;
+      width: 360px;
+      background: var(--bg);
+      color: var(--text);
+      overflow-x: hidden;
     }
 
     .header {
+      padding: 24px 20px;
+      background: var(--header-bg);
+      border-bottom: 3px solid var(--primary);
       text-align: center;
-      margin-bottom: 20px;
     }
 
     .header h1 {
       font-size: 20px;
-      margin-bottom: 5px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 4px;
     }
 
     .header p {
+      font-size: 13px;
+      color: var(--text-dim);
+    }
+
+    .container {
+      padding: 20px;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      border-radius: 20px;
       font-size: 12px;
-      color: #aaa;
+      font-weight: 600;
+      margin-bottom: 20px;
+      width: 100%;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .status-badge.connected {
+      background: rgba(0, 200, 83, 0.1);
+      color: var(--success);
+      border: 1px solid rgba(0, 200, 83, 0.2);
+    }
+
+    .status-badge.disconnected {
+      background: rgba(255, 61, 0, 0.1);
+      color: var(--error);
+      border: 1px solid rgba(255, 61, 0, 0.2);
+    }
+
+    .status-badge svg {
+      width: 8px;
+      height: 8px;
+      fill: currentColor;
     }
 
     .section {
-      margin-bottom: 20px;
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
     }
 
     .section-title {
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      color: #4CAF50;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-dim);
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .input-group {
-      margin-bottom: 15px;
+      margin-bottom: 12px;
     }
 
     .input-group label {
       display: block;
       font-size: 12px;
-      margin-bottom: 5px;
-      color: #ccc;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      font-weight: 500;
     }
 
-    .input-group input {
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      gap: 8px;
+    }
+
+    input {
       width: 100%;
-      padding: 10px;
-      border: 1px solid #444;
-      border-radius: 6px;
       background: #2a2a2a;
-      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: var(--text);
       font-size: 14px;
-    }
-
-    .input-group input:focus {
       outline: none;
-      border-color: #4CAF50;
+      transition: var(--transition);
     }
 
-    .button {
+    input:focus {
+      border-color: var(--primary);
+      background: #333;
+    }
+
+    .btn {
       width: 100%;
       padding: 12px;
       border: none;
-      border-radius: 6px;
+      border-radius: 8px;
       font-size: 14px;
-      font-weight: bold;
+      font-weight: 700;
       cursor: pointer;
-      transition: all 0.3s;
-      margin-bottom: 10px;
-    }
-
-    .button-primary {
-      background: #4CAF50;
-      color: white;
-    }
-
-    .button-primary:hover {
-      background: #45a049;
-    }
-
-    .button-secondary {
-      background: #2196F3;
-      color: white;
-    }
-
-    .button-secondary:hover {
-      background: #0b7dda;
-    }
-
-    .button-danger {
-      background: #f44336;
-      color: white;
-    }
-
-    .button-danger:hover {
-      background: #da190b;
-    }
-
-    .button:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    .status {
-      padding: 10px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-      font-size: 12px;
-      text-align: center;
-    }
-
-    .status.connected {
-      background: #4CAF50;
-      color: white;
-    }
-
-    .status.disconnected {
-      background: #f44336;
-      color: white;
-    }
-
-    .room-info {
-      background: #2a2a2a;
-      padding: 15px;
-      border-radius: 6px;
-      margin-bottom: 15px;
-    }
-
-    .room-info-item {
+      transition: var(--transition);
       display: flex;
-      justify-content: space-between;
-      margin-bottom: 8px;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #ff5e73;
+    }
+
+    .btn-secondary {
+      background: #333;
+      color: white;
+    }
+
+    .btn-secondary:hover {
+      background: #444;
+    }
+
+    .btn-danger {
+      background: rgba(255, 61, 0, 0.1);
+      color: var(--error);
+      border: 1px solid rgba(255, 61, 0, 0.2);
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 61, 0, 0.2);
+    }
+
+    .btn-small {
+      padding: 8px 12px;
       font-size: 12px;
+      width: auto;
     }
 
-    .room-info-item:last-child {
-      margin-bottom: 0;
+    .room-details {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
     }
 
-    .room-info-label {
-      color: #aaa;
+    .detail-item {
+      background: #2a2a2a;
+      padding: 10px;
+      border-radius: 8px;
     }
 
-    .room-info-value {
-      color: #fff;
-      font-weight: bold;
+    .detail-label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .detail-value {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
       word-break: break-all;
     }
 
-    .input-with-button {
-      display: flex;
-      gap: 5px;
-    }
-
-    .input-with-button input {
-      flex: 1;
-    }
-
-    .preset-button {
-      padding: 6px 12px;
-      font-size: 11px;
-      background: #444;
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .preset-button:hover {
-      background: #555;
-    }
-
-    .help-text {
-      font-size: 11px;
-      color: #888;
-      margin-top: 5px;
-      line-height: 1.4;
-    }
-
-    .help-text a {
-      color: #4CAF50;
-      text-decoration: none;
-    }
-
-    .help-text a:hover {
-      text-decoration: underline;
-    }
-
     .member-list {
-      margin-top: 10px;
-      max-height: 150px;
+      margin-top: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+      max-height: 120px;
       overflow-y: auto;
-      background: #222;
-      border-radius: 4px;
-      padding: 5px;
     }
 
     .member-item {
       display: flex;
       justify-content: space-between;
-      padding: 5px 8px;
-      font-size: 11px;
-      border-bottom: 1px solid #333;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid #2a2a2a;
     }
 
     .member-item:last-child {
@@ -224,78 +240,146 @@
     }
 
     .member-id {
-      color: #ddd;
+      font-size: 12px;
+      color: var(--text);
     }
 
     .member-role {
-      font-weight: bold;
-      color: #888;
+      font-size: 10px;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: #444;
+      color: var(--text-dim);
     }
 
     .member-role.host {
-      color: #f44336;
+      background: rgba(255, 61, 0, 0.2);
+      color: var(--error);
     }
 
-    .member-role.me {
-      color: #4CAF50;
+    .footer {
+      padding: 0 20px 20px;
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .footer a {
+      color: var(--primary);
+      text-decoration: none;
+    }
+
+    #leaveRoom {
+      margin-top: 8px;
+    }
+
+    .icon-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 4px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+    }
+
+    .icon-btn:hover {
+      color: var(--text);
+    }
+
+    .copy-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--primary);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 1000;
     }
   </style>
 </head>
 
 <body>
   <div class="header">
-    <h1>🎬 Laftel Watch Together</h1>
-    <p>Watch videos together in real-time</p>
+    <h1>🎬 라프텔 함께 보기</h1>
+    <p>실시간으로 친구와 애니메이션을 감상하세요</p>
   </div>
 
-  <div id="status" class="status disconnected" style="display: none;">
-    Disconnected
-  </div>
+  <div class="container">
+    <div id="status" class="status-badge disconnected">
+      <svg viewBox="0 0 8 8"><circle cx="4" cy="4" r="4"/></svg>
+      서버 연결 안 됨
+    </div>
 
-  <div id="roomInfo" class="room-info" style="display: none;">
-    <div class="room-info-item">
-      <span class="room-info-label">Room ID:</span>
-      <span class="room-info-value" id="roomIdDisplay">-</span>
-    </div>
-    <div class="room-info-item">
-      <span class="room-info-label">Mode:</span>
-      <span class="room-info-value" id="modeDisplay">-</span>
-    </div>
-    <div class="room-info-item">
-      <span class="room-info-label">Members:</span>
-      <span class="room-info-value" id="memberCount">-</span>
-    </div>
-    <div id="memberList" class="member-list">
-      <!-- Members will be populated here -->
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Server Settings</div>
-    <div class="input-group">
-      <label for="wsUrl">WebSocket Server URL</label>
-      <div class="input-with-button">
-        <input type="text" id="wsUrl" placeholder="wss://your-server.onrender.com or ws://localhost:3001">
-        <button id="convertUrl" class="preset-button" title="Convert HTTP/HTTPS URL to WebSocket URL">Convert</button>
+    <!-- 방 정보 (활성화 시 보임) -->
+    <div id="roomInfo" class="section" style="display: none;">
+      <div class="section-title">현재 방 정보</div>
+      <div class="room-details">
+        <div class="detail-item">
+          <div class="detail-label">방 코드</div>
+          <div class="detail-value" style="display: flex; align-items: center; gap: 4px;">
+            <span id="roomIdDisplay">-</span>
+            <button id="copyRoomId" class="icon-btn" title="방 코드 복사">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="detail-item">
+          <div class="detail-label">나의 역할</div>
+          <div class="detail-value" id="modeDisplay">-</div>
+        </div>
       </div>
-      <div class="help-text">
-        💡 Enter your deployed server URL (e.g., wss://your-app.onrender.com)<br>
-        Local test: ws://localhost:3001<br>
-        <a href="#" id="showDeployGuide">View deployment guide</a>
+      
+      <button id="requestSync" class="btn btn-secondary btn-small" style="width: 100%; margin-bottom: 12px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        지금 동기화하기
+      </button>
+
+      <div class="detail-label">참여자 (<span id="memberCount">0</span>명)</div>
+      <div id="memberList" class="member-list">
+        <!-- 참여자 목록 -->
       </div>
     </div>
+
+    <!-- 연결 설정 -->
+    <div id="setupSection" class="section">
+      <div class="section-title">서버 설정</div>
+      <div class="input-group">
+        <label for="wsUrl">서버 주소 (WebSocket)</label>
+        <div class="input-wrapper">
+          <input type="text" id="wsUrl" placeholder="wss://your-app.onrender.com">
+        </div>
+      </div>
+      <button id="createRoom" class="btn btn-primary">새로운 방 만들기</button>
+    </div>
+
+    <!-- 방 참여 -->
+    <div id="joinSection" class="section">
+      <div class="section-title">방 디자인</div>
+      <div class="input-group">
+        <label for="joinRoomId">참여할 방 코드</label>
+        <input type="text" id="joinRoomId" placeholder="방 코드를 입력하세요">
+      </div>
+      <button id="joinRoom" class="btn btn-secondary">방 입장하기</button>
+    </div>
+
+    <button id="leaveRoom" class="btn btn-danger" style="display: none;">방 나가기</button>
   </div>
 
-  <div class="section">
-    <div class="section-title">Room Management</div>
-    <button id="createRoom" class="button button-primary">Create New Room</button>
-    <div class="input-group">
-      <label for="joinRoomId">Join by Room ID</label>
-      <input type="text" id="joinRoomId" placeholder="Enter room ID">
-    </div>
-    <button id="joinRoom" class="button button-secondary">Join Room</button>
-    <button id="leaveRoom" class="button button-danger" style="display: none;">Leave Room</button>
+  <div class="footer">
+    💡 라프텔 영상 페이지(laftel.net)에서만 작동합니다.<br>
+    <a href="#" id="showDeployGuide">서버 배포 가이드 보기</a>
   </div>
+
+  <div id="copyToast" class="copy-toast">방 코드가 복사되었습니다!</div>
 
   <script src="popup.js"></script>
 </body>

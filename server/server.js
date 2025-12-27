@@ -111,8 +111,16 @@ function handleMessage(ws, clientId, data) {
       handleLeaveRoom(ws, clientId);
       break;
 
+    case 'sync_request':
+      handleSyncRequest(ws, clientId);
+      break;
+
     case 'sync_response':
       handleSyncResponse(ws, data);
+      break;
+
+    case 'ping':
+      send(ws, { type: 'pong' });
       break;
 
     default:
@@ -248,6 +256,21 @@ function handleJoinRoom(ws, clientId, data) {
       from: clientId
     });
   }
+}
+
+// Handle sync request from participant
+function handleSyncRequest(ws, clientId) {
+  const roomId = clientRooms.get(ws);
+  if (!roomId) return;
+
+  const room = rooms.get(roomId);
+  if (!room || !room.hostWs) return;
+
+  // Forward sync request to host
+  send(room.hostWs, {
+    type: 'sync_request',
+    from: clientId
+  });
 }
 
 // Leave current room
