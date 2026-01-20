@@ -198,7 +198,7 @@ function handleJoinRoom(ws, clientId, data) {
     return;
   }
 
-  // Check if already in this room
+  // Check if already in this room with THIS socket
   const currentRoomId = clientRooms.get(ws);
   if (currentRoomId === roomId) {
     const room = rooms.get(roomId);
@@ -226,17 +226,25 @@ function handleJoinRoom(ws, clientId, data) {
 
   const room = rooms.get(roomId);
 
-  // Add to room as participant (not host)
-  room.participants.set(ws, { isHost: false, joinedAt: Date.now(), clientId });
+  // Deduplicate: If this clientId is already in the room with a different socket, remove the old one
+  const wasHost = deduplicateParticipant(roomId, clientId, ws);
+
+  // Add to room as participant (inherit host status if it was a takeover)
+  room.participants.set(ws, { isHost: wasHost, joinedAt: Date.now(), clientId });
   clientRooms.set(ws, roomId);
 
-  console.log(`[Room] ${clientId} joined ${roomId} (${room.participants.size} participants)`);
+  if (wasHost) {
+    room.hostWs = ws;
+    console.log(`[Room] ${clientId} took over host session in ${roomId}`);
+  } else {
+    console.log(`[Room] ${clientId} joined ${roomId} (${room.participants.size} participants)`);
+  }
 
   // Send confirmation to new participant
   send(ws, {
     type: 'room_joined',
     roomId,
-    isHost: false,
+    isHost: wasHost,
     participants: room.participants.size
   });
 
@@ -410,6 +418,46 @@ function sendError(ws, message) {
 // Generate unique client ID
 function generateClientId() {
   return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+/**
+ * Remove any existing participant with the same clientId from the room.
+ * This handles background reconnections/refreshes where the old socket hasn't closed yet.
+ * Returns true if the session being replaced was the host.
+ */
+function deduplicateParticipant(roomId, clientId, newWs) {
+  const room = rooms.get(roomId);
+  if (!room || !clientId) return false;
+
+  let wasHost = false;
+  let oldWs = null;
+
+  for (const [ws, info] of room.participants.entries()) {
+    if (info.clientId === clientId && ws !== newWs) {
+      oldWs = ws;
+      wasHost = info.isHost;
+      break;
+    }
+  }
+
+  if (oldWs) {
+    console.log(`[Deduplicate] Removing stale session for ${clientId} in ${roomId} (wasHost: ${wasHost})`);
+    room.participants.delete(oldWs);
+    clientRooms.delete(oldWs);
+
+    // Close the old socket if it's still open to prevent confusion
+    if (oldWs.readyState === WebSocket.OPEN || oldWs.readyState === WebSocket.CONNECTING) {
+      try {
+        // Remove close listener to prevent handleDisconnect from firing
+        oldWs.removeAllListeners('close');
+        oldWs.close(1000, 'Replaced by new session');
+      } catch (e) {
+        // Ignore errors during close
+      }
+    }
+  }
+
+  return wasHost;
 }
 
 // Graceful shutdown
