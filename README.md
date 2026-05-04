@@ -1,124 +1,128 @@
-# Laftel Watch Together Chrome Extension
+# 🎬 Laftel Watch Together
 
-A Chrome extension that allows you to watch Laftel videos together with friends in real-time.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Chrome Extension](https://img.shields.io/badge/Platform-Chrome%20Extension-blue.svg)](https://developer.chrome.com/docs/extensions/)
+[![Node.js](https://img.shields.io/badge/Backend-Node.js-green.svg)](https://nodejs.org/)
 
-## Features
+**Laftel Watch Together** is a powerful Chrome extension designed to sync video playback on [Laftel](https://laftel.net), allowing you and your friends to enjoy anime together in real-time, no matter where you are.
 
-- 🎬 Real-time video synchronization (play/pause/time)
-- 👥 Multiple participants support
-- 🎮 Host mode (one person controls, others sync)
-- 🔄 Auto-reconnect
-- 💬 WebSocket-based real-time communication
+---
 
-## Installation
+## ✨ Key Features
 
-### 1. Install Chrome Extension
+- **🔄 Perfect Synchronization**: Instant sync of Play, Pause, and Seek events across all participants.
+- **📺 Episode Tracking**: Automatically navigates all participants to the same episode when the host switches pages.
+- **👑 Dynamic Host System**: 
+  - The first person to create a room becomes the **Host**.
+  - If the host leaves, leadership is automatically transferred to the next participant.
+  - Seamless session takeover if the host refreshes or navigates.
+- **👥 Member Management**: Real-time participant list and room status tracking via the extension popup.
+- **🔌 Robust Connectivity**: 
+  - Heartbeat system to keep WebSocket connections alive.
+  - Automatic reconnection logic for unstable networks.
+  - Session deduplication to handle page refreshes gracefully.
+- **🛡️ Status Overlay**: A discrete on-screen indicator shows your current connection status and role (Host/Guest).
 
-1. Open `chrome://extensions/` in Chrome
-2. Enable "Developer mode" (top right)
-3. Click "Load unpacked"
-4. Select this project folder
+---
 
-### 2. Deploy WebSocket Server (Optional)
+## 📂 Project Structure
 
-#### Option A: Free Hosting (Recommended)
-
-**Render Deployment** - Very simple setup!
-
-**Quick guide: [RENDER_DEPLOY.md](./RENDER_DEPLOY.md)**
-
-Quick steps:
-1. Go to [Render](https://render.com) and login with GitHub
-2. Click "New +" → "Blueprint"
-3. Select GitHub repository → "Apply"
-4. Copy the URL after deployment (e.g., `https://raftel-watch-together.onrender.com`)
-5. Enter `wss://raftel-watch-together.onrender.com` in Chrome Extension
-
-**Other options**: Railway, Fly.io also supported
-- Detailed guide: [DEPLOY.md](./DEPLOY.md)
-
-#### Option B: Local Server
-
-```bash
-cd server
-npm install
-npm start
-```
-
-Server runs on `ws://localhost:3001` by default.
-
-Change port:
-```bash
-PORT=3002 npm start
-```
-
-## Usage
-
-### Create Room
-
-1. Open Laftel player page (`https://laftel.net/player/*`)
-2. Click extension icon
-3. Enter WebSocket server URL (default: `ws://localhost:3001`)
-4. Click "Create New Room"
-5. Share the room ID with friends
-
-### Join Room
-
-1. Open extension popup
-2. Enter WebSocket server URL
-3. Enter room ID
-4. Click "Join Room"
-
-### Synchronization
-
-- **Host**: Play, pause, and time changes sync to all participants
-- **Participants**: Follow host's control (their own controls are ignored)
-
-## Project Structure
-
-```
+```text
 raftel-watch-together/
-├── manifest.json          # Chrome Extension config
-├── content.js            # Script injected into Laftel pages
-├── content.css           # Styles
-├── background.js         # Background Service Worker
-├── popup.html            # Extension popup UI
-├── popup.js              # Popup logic
-├── server/
-│   ├── server.js         # WebSocket server
-│   └── package.json      # Server dependencies
-└── README.md
+├── server/                 # WebSocket Backend
+│   ├── server.js           # Core server logic
+│   ├── package.json        # Node.js dependencies
+│   ├── render.yaml         # Render blueprint config
+│   └── railway.json        # Railway deployment config
+├── background.js           # Extension Service Worker
+├── content.js              # Video control & sync logic
+├── content.css             # In-page status UI styles
+├── popup.html / popup.js   # Extension popup interface
+└── manifest.json           # Extension configuration (V3)
 ```
 
-## Tech Stack
+---
 
-- **Extension**: Chrome Extension Manifest V3
-- **Communication**: WebSocket (ws library)
-- **Server**: Node.js
+## 🛠️ Architecture
 
-## Notes
+The project consists of two main components:
 
-- WebSocket server must be running
-- All participants must connect to the same server
-- For local server (`localhost`), use actual IP address for other devices on the same network
-- **Deployed server**: Use WSS (`wss://`) for HTTPS sites
-- **Local server**: Use WS (`ws://`) for HTTP sites
+1.  **Chrome Extension (Frontend)**:
+    *   **Content Script**: Injected into Laftel's player pages to monitor and control the `<video>` element.
+    *   **Popup UI**: A clean interface for room management and connection settings.
+    *   **Background Worker**: Handles persistent state and messaging.
+2.  **WebSocket Server (Backend)**:
+    *   A Node.js server that manages rooms and broadcasts synchronization events to participants.
 
-## Development
+---
 
-### Server Development Mode
+## 🚀 Getting Started
 
+### 1. Extension Installation
+
+1.  Clone this repository or download the source code.
+2.  Open Chrome and navigate to `chrome://extensions/`.
+3.  Enable **Developer mode** in the top right corner.
+4.  Click **Load unpacked** and select the project root directory.
+
+### 2. Server Setup (Optional)
+
+You can use the default local server or deploy your own for remote watching.
+
+#### Local Development
 ```bash
+# Navigate to server directory
 cd server
+
+# Install dependencies
+npm install
+
+# Start the server
+npm start
+
+# For development (with auto-reload)
 npm run dev
 ```
+The server will run on `ws://localhost:3001` by default.
 
-### Debugging
+#### Cloud Deployment (Recommended)
+This project is optimized for **Render**, **Railway**, or **Fly.io**.
 
-1. Chrome Extension: `chrome://extensions/` → "Details" → "Inspect" → "Service Worker"
-2. Content Script: F12 → Console on Laftel player page
-3. Popup: Right-click popup → "Inspect"
+-   **Render**: Use the provided `RENDER_DEPLOY.md` for a quick 1-click-style setup.
+-   **Railway**: Use the `railway.json` and `Procfile` for instant deployment.
 
-## License
+---
 
-MIT
+## 📖 How to Use
+
+1.  **Open Laftel**: Navigate to any anime on [Laftel](https://laftel.net).
+2.  **Setup Server**: Click the extension icon and enter your WebSocket server URL (e.g., `wss://your-app.onrender.com`).
+3.  **Create/Join Room**:
+    *   **Host**: Enter a name for the room and click **Create Room**. Copy the Room ID and share it.
+    *   **Participant**: Enter the Room ID provided by the host and click **Join Room**.
+4.  **Enjoy**: Start the video! The host controls the playback for everyone.
+
+---
+
+## 💻 Tech Stack
+
+-   **Extension**: JavaScript (ES6+), Manifest V3, Chrome Scripting API
+-   **Styling**: Vanilla CSS with modern Flexbox/Grid
+-   **Backend**: Node.js, `ws` (WebSocket library)
+-   **Infrastructure**: Render / Railway ready
+
+---
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Feel free to open an issue or submit a pull request to improve the synchronization logic or add new features.
+
+---
+
+<p align="center">Made with ❤️ for anime fans.</p>
